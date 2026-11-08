@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>에이전트 루프 + MCP</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-run-state="idle">
+  <header class="top">
+    <div class="title">
+      <h1>에이전트 루프 + MCP</h1>
+      <span id="mode-badge" class="badge">모드 확인 중…</span>
+    </div>
+    <div class="controls">
+      <label class="field">실행 모드
+        <select id="mode-select">
+          <option value="mock">모의 (대본 LLM)</option>
+          <option value="real">실제 (Ollama)</option>
+        </select>
+      </label>
+      <label class="toggle"><input type="checkbox" id="step-toggle"> 한 단계씩 보기</label>
+      <button id="next-step" type="button" disabled>다음 단계 <span id="pending-count"></span></button>
+    </div>
+    <p id="notice" class="notice"></p>
+  </header>
+
+  <main class="layout">
+    <!-- 왼쪽: 연결된 MCP 서버 -->
+    <aside class="panel" id="servers-panel">
+      <div class="panel-head">
+        <h2>연결된 MCP 서버</h2>
+        <button id="reload-tools" type="button" class="small" title="servers/ 코드를 고친 뒤 눌러 보세요">다시 불러오기</button>
+      </div>
+      <p class="note">이 목록은 각 서버의 <code>tools/list</code> 응답입니다. 모델은 이 이름·설명·입력 스키마를 읽고 도구를 고릅니다.</p>
+      <div id="server-list"><p class="muted">서버에 연결하는 중…</p></div>
+    </aside>
+
+    <!-- 가운데: 질문과 타임라인 -->
+    <section class="center">
+      <form id="ask" class="ask">
+        <input id="question" type="text" maxlength="500" placeholder="질문을 입력하거나 아래 예시를 누르세요" autocomplete="off">
+        <button id="run" type="submit">실행</button>
+        <button id="stop" type="button" disabled>중지</button>
+      </form>
+      <div id="examples" class="examples"></div>
+      <div id="timeline" class="timeline" aria-live="polite">
+        <p class="muted empty">질문을 실행하면 "생각 → 도구 호출 → 관찰" 카드가 여기에 차례로 쌓입니다.</p>
+      </div>
+      <div id="summary" class="summary"></div>
+    </section>
+
+    <!-- 오른쪽: 루프 그림과 대화 기록 -->
+    <aside class="panel" id="side-panel">
+      <h2>루프 그림</h2>
+      <svg id="loop" viewBox="0 0 260 210" role="img" aria-label="계획, 행동, 관찰을 도는 루프와 출구인 최종 답">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" class="arrow-head"/>
+          </marker>
+        </defs>
+        <path class="edge" d="M180,36 C210,36 212,60 212,91" marker-end="url(#arrow)"/>
+        <path class="edge" d="M212,130 C212,165 200,178 183,178" marker-end="url(#arrow)"/>
+        <path class="edge" d="M96,178 C45,170 45,80 100,57" marker-end="url(#arrow)"/>
+        <path class="edge exit" d="M96,36 L71,36" marker-end="url(#arrow)"/>
+        <g id="node-plan" class="node"><rect x="96" y="18" width="84" height="36" rx="18"/><text x="138" y="41">계획(생각)</text></g>
+        <g id="node-act" class="node"><rect x="170" y="94" width="84" height="36" rx="18"/><text x="212" y="117">행동(호출)</text></g>
+        <g id="node-observe" class="node"><rect x="96" y="160" width="84" height="36" rx="18"/><text x="138" y="183">관찰(결과)</text></g>
+        <g id="node-answer" class="node exit"><rect x="4" y="18" width="64" height="36" rx="6"/><text x="36" y="41">최종 답</text></g>
+      </svg>
+      <p class="note">답이 나올 때까지 계획 → 행동 → 관찰을 반복합니다. 지금 단계가 강조됩니다.</p>
+
+      <h2>모델에게 보낸 대화 기록</h2>
+      <p class="note">회차마다 모델은 이 기록 전체를 다시 읽습니다. 에이전트 = 기록을 늘려 가며 모델을 다시 부르는 반복문.</p>
+      <ol id="history" class="history"><li class="muted">실행하면 messages 배열이 보입니다.</li></ol>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    카드의 MCP 메시지는 SDK 결과 객체를 와이어 모양 JSON으로 덤프한 것입니다. 요청 쪽은 <code>_meta</code>를 뺀 표시용 재구성입니다.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
