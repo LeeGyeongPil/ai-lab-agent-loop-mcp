@@ -33,3 +33,18 @@ def test_cli_auto_falls_back_without_ollama():
     assert proc.returncode == 0, proc.stderr
     assert "Ollama에 연결할 수 없어 모의 모드로 실행합니다" in proc.stdout
     assert "[관찰·오류]" in proc.stdout and "[최종 답]" in proc.stdout
+
+
+def test_cli_server_stderr_kept_out_of_terminal():
+    # 예시 2: 서버가 stderr에 "Tool 'check_stock' failed ..." 로그를 남긴다.
+    # 이 줄이 "[생각] ..." 줄 사이에 끼어들지 않고 로그 파일로만 가야 한다.
+    from agentloop.cli import SERVER_LOG_FILE
+
+    proc, _ = run_cli("--cli", "--mock", "수박 재고 있어?", extra_env={"MOCK_DELAY_MS": "0"})
+    assert proc.returncode == 0, proc.stderr
+    assert "failed" not in proc.stdout and "failed" not in proc.stderr
+    timeline = [line for line in proc.stdout.splitlines() if line.startswith("[회차")]
+    assert len(timeline) == 5  # 생각·도구 호출·관찰·생각·최종 답
+    assert all(line.endswith("초)") for line in timeline if "[생각]" in line)  # 생각 줄이 중간에 끊기지 않았다
+    assert "[서버 로그]" in proc.stdout and "runs/mcp-server-stderr.log" in proc.stdout
+    assert "Tool 'check_stock' failed" in SERVER_LOG_FILE.read_text(encoding="utf-8")

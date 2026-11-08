@@ -16,8 +16,10 @@ import time
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TextIO
 
 from mcp import Client, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 # 도구 하나가 이 시간보다 오래 걸리면 오류 관찰로 돌려준다(멈춘 도구가 실행 전체를 붙잡지 않게).
 TOOL_TIMEOUT_SECONDS = 30.0
@@ -72,8 +74,13 @@ def _dump(model) -> dict:
 
 
 class McpHub:
-    def __init__(self, server_params: dict[str, StdioServerParameters]):
+    def __init__(self, server_params: dict[str, StdioServerParameters], errlog: TextIO | None = None):
+        """errlog: 서버들의 stderr(로그)를 보낼 파일. None이면 지금 터미널(sys.stderr)에 그대로 나온다.
+
+        파일을 열고 닫는 책임은 호출한 쪽에 있다(허브는 빌려 쓰기만 한다).
+        """
         self.server_params = server_params
+        self.errlog = errlog
         self.clients: dict[str, Client] = {}  # 서버 이름 → 연결
         self.tools: dict[str, list] = {}  # 서버 이름 → 도구 정의 목록(설정 파일 순서 유지)
         self.route: dict[str, str] = {}  # 도구 이름 → 그 도구를 가진 서버 이름
@@ -86,7 +93,9 @@ class McpHub:
         try:
             for name, params in self.server_params.items():
                 # 1) 서버를 하위 프로세스로 띄우고 stdio로 연결한다
-                client = Client(params, read_timeout_seconds=TOOL_TIMEOUT_SECONDS)
+                # errlog가 있으면 stderr를 그 파일로 돌리도록 stdio 연결을 직접 만들어 넘긴다
+                transport = stdio_client(params, errlog=self.errlog) if self.errlog else params
+                client = Client(transport, read_timeout_seconds=TOOL_TIMEOUT_SECONDS)
                 self.clients[name] = await self._stack.enter_async_context(client)
 
                 # 2) tools/list — 이 서버가 가진 도구 목록을 받는다

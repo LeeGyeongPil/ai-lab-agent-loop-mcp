@@ -57,3 +57,14 @@ async def test_no_orphan_processes(settings):
     async with McpHub(load_server_params(settings.servers_file)):
         assert len(child_pids(pid)) == 2  # 실행 중에는 서버 2개가 자식 프로세스로 떠 있다
     assert child_pids(pid) == []  # async with 를 벗어나면 남지 않는다
+
+
+async def test_errlog_receives_server_stderr(settings, tmp_path):
+    # errlog 파일을 주면 서버 로그가 터미널 대신 그 파일로 가고, 서버는 그대로 정리된다
+    log_path = tmp_path / "servers.log"
+    with log_path.open("w", encoding="utf-8") as errlog:
+        async with McpHub(load_server_params(settings.servers_file), errlog=errlog) as hub:
+            bad = await hub.call("check_stock", {"item": "수박"})
+            assert bad.is_error
+    assert child_pids(os.getpid()) == []
+    assert "Tool 'check_stock' failed" in log_path.read_text(encoding="utf-8")

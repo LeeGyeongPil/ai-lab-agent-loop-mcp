@@ -10,10 +10,14 @@
 import json
 
 from agentloop.agent import run_agent
-from agentloop.config import Settings
+from agentloop.config import PROJECT_ROOT, Settings
 from agentloop.events import Event
 from agentloop.llm import make_llm
 from agentloop.mcp_hub import ConfigError, load_server_params
+
+# MCP 서버들의 stderr(로그)를 모아 두는 파일. 실행할 때마다 새로 써서(덮어쓰기) 크기가 계속 커지지 않는다.
+# 터미널로 그대로 보내면 서버 로그 줄이 "[생각] ..." 줄 한가운데에 끼어들어 출력이 깨진다.
+SERVER_LOG_FILE = PROJECT_ROOT / "runs" / "mcp-server-stderr.log"
 
 STOP_LABELS = {"answer": "답을 냄", "max_steps": "최대 회차 도달", "error": "오류", "cancelled": "취소됨"}
 
@@ -72,12 +76,22 @@ async def run_cli(question: str, settings: Settings, mode: str) -> int:
             stop["reason"] = event.data["stop_reason"]
         await print_event(event)
 
-    await run_agent(
-        question,
-        make_llm(mode, settings),
-        server_params,
-        max_steps=settings.max_steps,
-        mode=mode,
-        emit=emit,
-    )
+    SERVER_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # with 블록: 실행이 정상 종료·오류·Ctrl+C 어느 쪽으로 끝나도 파일을 닫는다.
+    # (서버 프로세스는 run_agent 안의 async with 가 먼저 정리하므로, 닫힌 파일에 쓰는 일은 없다)
+    with SERVER_LOG_FILE.open("w", encoding="utf-8") as server_log:
+        await run_agent(
+            question,
+            make_llm(mode, settings),
+            server_params,
+            max_steps=settings.max_steps,
+            mode=mode,
+            emit=emit,
+            server_errlog=server_log,
+        )
+
+    log_lines = SERVER_LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
+    if log_lines:
+        relative = SERVER_LOG_FILE.relative_to(PROJECT_ROOT).as_posix()
+        print(f"[서버 로그] MCP 서버가 남긴 로그 {len(log_lines)}줄은 {relative} 에 있습니다.")
     return 1 if stop.get("reason") == "error" else 0

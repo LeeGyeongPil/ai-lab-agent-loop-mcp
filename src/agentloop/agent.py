@@ -17,6 +17,7 @@ import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from typing import TextIO
 
 from mcp import StdioServerParameters
 
@@ -38,7 +39,9 @@ async def run_agent(
     max_steps: int,
     mode: str,
     emit: Emit,
+    server_errlog: TextIO | None = None,
 ) -> None:
+    """server_errlog: MCP 서버들의 stderr를 보낼 파일(None이면 터미널). CLI가 출력이 섞이지 않게 쓴다."""
     started = time.perf_counter()
     stats = {"steps": 0, "tool_calls": 0, "errors": 0}
     stop_reason = "max_steps"  # 답이 나오면 "answer"로 바뀐다
@@ -50,7 +53,7 @@ async def run_agent(
         await send("run_start", mode=mode, model=llm.name, question=question)
 
         # ── 준비: MCP 서버들에 연결하고 도구 목록(tools/list)을 받는다 ──
-        async with McpHub(server_params) as hub:
+        async with McpHub(server_params, errlog=server_errlog) as hub:
             await send("tools_listed", servers=hub.summary(), wire=hub.list_wire, seconds=_since(started))
 
             messages = [
