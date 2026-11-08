@@ -1,0 +1,15 @@
+{
+  "order": 2,
+  "question": "수박 재고 있어?",
+  "match": ["수박"],
+  "turns": [
+    {
+      "thinking": "수박의 재고를 물었다. check_stock으로 바로 확인해 보자.",
+      "tool_calls": [{"name": "check_stock", "arguments": {"item": "수박"}}]
+    },
+    {
+      "thinking": "도구가 오류를 돌려줬다. 'unknown item: 수박'이고 아는 품목은 사과, 바나나, 포도뿐이다. 수박은 이 가게에서 팔지 않는다고 알려 주고 있는 품목을 안내하자.",
+      "answer": "수박은 우리 가게에서 취급하지 않아요. 지금 파는 과일은 사과·바나나·포도입니다."
+    }
+  ]
+}

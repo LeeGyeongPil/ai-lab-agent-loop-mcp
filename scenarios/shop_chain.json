@@ -1,0 +1,27 @@
+{
+  "order": 1,
+  "question": "가장 재고가 많은 과일의 가격은 얼마야?",
+  "match": ["재고", "가격"],
+  "turns": [
+    {
+      "thinking": "가게에서 파는 과일 이름을 모른다. 추측하지 말고 먼저 list_items로 품목 목록을 받아 보자.",
+      "tool_calls": [{"name": "list_items", "arguments": {}}]
+    },
+    {
+      "thinking": "품목은 사과, 바나나, 포도 세 가지다. 어느 것이 재고가 가장 많은지 알려면 세 품목의 재고를 모두 확인해야 한다. check_stock을 세 번 부르자.",
+      "tool_calls": [
+        {"name": "check_stock", "arguments": {"item": "사과"}},
+        {"name": "check_stock", "arguments": {"item": "바나나"}},
+        {"name": "check_stock", "arguments": {"item": "포도"}}
+      ]
+    },
+    {
+      "thinking": "재고는 사과 12개, 바나나 0개, 포도 5개다. 가장 많은 건 사과다. 이제 사과의 가격을 get_price로 확인하자.",
+      "tool_calls": [{"name": "get_price", "arguments": {"item": "사과"}}]
+    },
+    {
+      "thinking": "사과 가격은 1500원이다. 필요한 사실을 모두 모았으니 답하자.",
+      "answer": "재고가 가장 많은 과일은 사과(12개)이고, 1개에 1,500원입니다."
+    }
+  ]
+}
