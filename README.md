@@ -22,7 +22,21 @@ AI 에이전트가 하는 일이 이것입니다. 모델 혼자서는 우리 가
 
 ## 30초 만에 실행하기
 
-준비물: Python 3.14 + [uv](https://docs.astral.sh/uv/) (실제 모델 모드에만 [Ollama](https://ollama.com) 필요)
+준비물: [git](https://git-scm.com/downloads) + [uv](https://docs.astral.sh/uv/) (실제 모델 모드에만 [Ollama](https://ollama.com) 필요)
+
+uv가 없다면 먼저 설치합니다. **Python 3.14는 따로 설치하지 않아도 됩니다.** PC에 없으면 uv가 첫 실행 때 자동으로 내려받습니다.
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+설치 후 터미널을 새로 열고 아래를 실행합니다.
 
 ```bash
 git clone https://github.com/LeeGyeongPil/ai-lab-agent-loop-mcp.git
@@ -127,6 +141,8 @@ uv run agent-loop --cli --mock "가장 재고가 많은 과일의 가격은 얼�
 ![터미널에 회차별 생각, 도구 호출, 관찰이 한 줄씩 찍힌 출력](docs/images/07-cli.png)
 <sub>웹 화면과 같은 이벤트를 글로 찍은 모습입니다. 마지막 `[끝]` 줄에 회차 수와 도구 호출 수가 요약됩니다.</sub>
 
+MCP 서버가 남기는 로그(stderr)는 출력이 섞이지 않도록 터미널 대신 `runs/mcp-server-stderr.log` 에 모입니다(실행할 때마다 새로 씀). 로그가 있으면 마지막에 `[서버 로그] MCP 서버가 남긴 로그 1줄은 runs/mcp-server-stderr.log 에 있습니다.` 처럼 알려 줍니다. 예시 2(수박)를 돌려 보면 서버가 남긴 `Tool 'check_stock' failed: ...` 줄을 이 파일에서 볼 수 있습니다.
+
 ### 8단계. 실제 모델로 돌려 보기
 
 `uv run agent-loop --real`로 실행하면 같은 화면에서 진짜 모델(`qwen3:4b`)이 생각합니다. 글자가 흘러나오는 것이 보입니다.
@@ -176,7 +192,9 @@ MCP의 역할은 2번과 4번, 즉 **도구를 어떻게 알리고(`tools/list`)
 | [`src/agentloop/mock_llm.py`](src/agentloop/mock_llm.py), [`scenarios/`](scenarios) | 모의 모드의 대본 모델과 대본 |
 | [`servers/shop_server.py`](servers/shop_server.py), [`servers/my_tools_server.py`](servers/my_tools_server.py) | MCP 서버 쪽 (도구를 가진 쪽) |
 | [`src/agentloop/web.py`](src/agentloop/web.py), [`static/`](src/agentloop/static) | 웹 화면, 이벤트 중계 |
-| [`tests/`](tests) | 테스트 (모의 모드로 돌아가며 키·모델이 필요 없음) |
+| [`tests/`](tests) | 테스트 (모의 모드로 돌아가며 키·모델이 필요 없음). `uv run pytest` 로 실행 |
+
+**테스트 돌려 보기:** `uv run pytest` 를 실행하면 키·모델 없이 1분 안에 끝납니다(실제 Ollama가 필요한 테스트는 기본으로 빠지고, `uv run pytest -m ollama` 로 따로 돌립니다).
 
 읽는 순서는 `agent.py` → `mcp_hub.py` → `servers/` 를 권합니다. 핵심 세 곳만 짚습니다.
 
@@ -272,7 +290,7 @@ AGENT_MAX_STEPS=2 uv run agent-loop --cli --mock "가장 재고가 많은 과일
 예시 1은 4회차가 필요하므로 이렇게 끝납니다.
 
 ```text
-[끝] 최대 회차 도달 · 회차 2 · 도구 호출 4 · 오류 0 · 총 2.37초
+[끝] 최대 회차 도달 · 회차 2 · 도구 호출 4 · 오류 0 · 총 2.85초
 ```
 
 답을 못 낸 채 멈추는 것이 "최대 회차" 가드의 역할입니다. 모델이 같은 도구를 영원히 부르는 상황에서 프로그램을 지켜 줍니다.
@@ -296,9 +314,10 @@ AGENT_MAX_STEPS=2 uv run agent-loop --cli --mock "가장 재고가 많은 과일
 | 모의 모드에서 다른 질문을 하면 안내 문구만 나옴 | 대본이 예시 3개에만 있음 | 실제 모드(`--real`)에서는 아무 질문이나 가능 |
 | 새 도구가 화면에 안 보임 | 서버 코드를 고친 뒤 목록을 다시 받지 않음 | **다시 불러오기** 버튼 또는 새로고침 |
 | 오류 카드 `도구 이름 '…' 이(가) 서버 'a' 와 'b' 에 모두 있습니다` | 두 서버에 같은 도구 이름 | 한쪽 도구 이름을 바꾸세요 |
-| 오류 시 터미널에 `Tool '…' failed` 줄이 섞여 나옴 | MCP 서버의 로그(stderr)가 보이는 것 | 정상입니다. 서버 코드에서 `print()`는 쓰지 마세요(표준 출력은 MCP 메시지 전용) |
+| 웹 모드 터미널에 `Tool '…' failed` 줄이 나옴 | MCP 서버의 로그(stderr)가 보이는 것 | 정상입니다. `--cli` 에서는 이 로그가 `runs/mcp-server-stderr.log` 로 갑니다. 서버 코드에서 `print()`는 쓰지 마세요(표준 출력은 MCP 메시지 전용) |
+| Docker·가상 머신·원격 개발 서버에서 띄웠더니 내 PC 브라우저로 접속이 안 됨 | 웹 서버는 기본으로 `127.0.0.1`(그 컴퓨터 자신)에만 열림 | `--host 0.0.0.0` 으로 모든 주소에 엽니다. Docker는 포트도 내보내야 합니다: `docker run -p 8765:8765 ...` 안에서 `uv run agent-loop --mock --host 0.0.0.0 --no-browser` 후 `http://127.0.0.1:8765` 접속. 원격 서버라면 `--host`를 바꾸는 대신 `ssh -L 8765:127.0.0.1:8765 <서버>` 포트 포워딩이 더 안전합니다 |
 
-**주의:** stdio 방식의 MCP 서버는 **내 PC에서 코드를 실행**합니다. 이 데모의 웹 화면은 `127.0.0.1`(내 PC)에만 열립니다. 직접 만들지 않은 서버를 `mcp_servers.json`에 추가할 때는 코드를 확인하고 믿을 수 있는 것만 등록하세요.
+**주의:** stdio 방식의 MCP 서버는 **내 PC에서 코드를 실행**합니다. 이 데모의 웹 화면은 기본으로 `127.0.0.1`(내 PC)에만 열립니다. `--host 0.0.0.0` 을 주면 같은 네트워크의 다른 기기도 질문을 실행할 수 있으므로(실행 시 경고가 나옵니다) 믿을 수 있는 네트워크에서만 쓰세요. 직접 만들지 않은 서버를 `mcp_servers.json`에 추가할 때는 코드를 확인하고 믿을 수 있는 것만 등록하세요.
 
 ## 이 데모가 따르는 버전 (MCP 명세 2026-07-28, Python SDK v2)
 
