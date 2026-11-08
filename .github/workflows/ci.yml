@@ -1,0 +1,16 @@
+# 키·모델 없이 mock 모드로 전체 흐름을 검증한다.
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install
+      - run: uv sync --locked
+      - run: uv run pytest -q -m "not ollama"
+        env:
+          AGENT_MODE: mock
