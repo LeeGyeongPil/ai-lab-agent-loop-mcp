@@ -1,0 +1,11 @@
+{
+  "order": 1,
+  "question": "끝나지 않는 질문",
+  "match": ["끝나지"],
+  "turns": [
+    {
+      "thinking": "목록을 다시 확인해 보자.",
+      "tool_calls": [{"name": "list_items", "arguments": {}}]
+    }
+  ]
+}

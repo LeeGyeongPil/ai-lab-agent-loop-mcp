@@ -1,0 +1,15 @@
+{
+  "order": 2,
+  "question": "없는 도구 질문",
+  "match": ["없는 도구"],
+  "turns": [
+    {
+      "thinking": "있지도 않은 도구를 불러 보자.",
+      "tool_calls": [{"name": "no_such_tool", "arguments": {"x": 1}}]
+    },
+    {
+      "thinking": "그런 도구는 없다고 한다.",
+      "answer": "그런 도구는 없습니다."
+    }
+  ]
+}
