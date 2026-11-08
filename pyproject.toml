@@ -1,0 +1,39 @@
+[project]
+name = "ai-lab-agent-loop-mcp"
+version = "0.1.0"
+description = "A transparent tool-using agent loop over MCP servers, shown step by step in the browser (local Ollama or deterministic mock mode)."
+requires-python = ">=3.14"
+license = "MIT"
+dependencies = [
+    "mcp==2.3.0",
+    "ollama==0.6.3",
+    # 아래 셋은 mcp가 이미 함께 설치하지만, 웹 UI가 직접 쓰므로 버전을 명시해 둔다.
+    "starlette==1.10.0",
+    "uvicorn==0.54.0",
+    "sse-starlette==3.7.0",
+]
+
+[project.scripts]
+agent-loop = "agentloop.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "agentloop"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# servers/ 폴더의 예제 MCP 서버를 테스트에서 바로 import 하기 위해
+pythonpath = ["servers"]
+# 실제 Ollama가 필요한 테스트는 기본 실행에서 뺀다 (uv run pytest -m ollama 로 따로 실행)
+addopts = "-m 'not ollama'"
+markers = [
+    "ollama: 실제 로컬 Ollama와 qwen3:4b 모델이 필요한 테스트 (CI 제외)",
+]
