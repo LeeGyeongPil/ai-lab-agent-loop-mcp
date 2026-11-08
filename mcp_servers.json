@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "shop": {
+      "command": "python",
+      "args": ["servers/shop_server.py"]
+    },
+    "my_tools": {
+      "command": "python",
+      "args": ["servers/my_tools_server.py"]
+    }
+  }
+}
