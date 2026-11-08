@@ -64,7 +64,7 @@ class RunStreamResponse(EventSourceResponse):
             self.slot.release()
 
 
-def create_app(settings: Settings, mode: str, notice: str, open_browser: bool = False) -> Starlette:
+def create_app(settings: Settings, mode: str, notice: str, open_browser: bool = False, url: str | None = None) -> Starlette:
     slot = RunSlot()  # 앱 하나에 자리 하나 (전역 변수 대신 앱에 묶어 둔다)
 
     async def index(request: Request):
@@ -144,7 +144,7 @@ def create_app(settings: Settings, mode: str, notice: str, open_browser: bool = 
     @contextlib.asynccontextmanager
     async def lifespan(app):
         if open_browser:
-            webbrowser.open(f"http://127.0.0.1:{settings.port}")
+            webbrowser.open(url or f"http://127.0.0.1:{settings.port}")
         yield
 
     return Starlette(
