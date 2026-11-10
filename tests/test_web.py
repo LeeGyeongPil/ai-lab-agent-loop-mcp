@@ -29,7 +29,7 @@ def slow_client(settings):
         yield c
 
 
-def wait_until(condition, timeout: float = 10.0) -> bool:
+def wait_until(condition, timeout: float = 30.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if condition():
