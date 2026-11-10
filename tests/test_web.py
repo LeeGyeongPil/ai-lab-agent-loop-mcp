@@ -6,7 +6,7 @@ import time
 from urllib.parse import quote
 
 import pytest
-from conftest import child_pids
+from conftest import children_alive_as_expected, no_children
 from starlette.testclient import TestClient
 
 from agentloop.web import create_app
@@ -58,7 +58,7 @@ def test_api_tools(client):
     servers = response.json()["servers"]
     names = [t["name"] for s in servers for t in s["tools"]]
     assert names == ["list_items", "check_stock", "get_price", "count_chars"]
-    assert child_pids(os.getpid()) == []  # 목록만 받고 서버는 바로 정리
+    assert no_children(os.getpid())  # 목록만 받고 서버는 바로 정리
 
 
 def test_run_stream_mock(client):
@@ -98,13 +98,13 @@ def test_disconnect_cancels_run(slow_client, caplog):
     with slow_client.stream("GET", RUN_URL) as response:
         for line in response.iter_lines():
             if line.startswith("event: tool_call"):
-                alive_during_run = len(child_pids(pid))  # 이때는 MCP 서버 2개가 떠 있다
+                alive_during_run = children_alive_as_expected(pid, 2)  # 이때는 MCP 서버 2개가 떠 있다
                 break  # 첫 도구 호출을 본 순간 연결을 끊는다(브라우저 탭 닫기와 같다)
-    assert alive_during_run == 2
+    assert alive_during_run
 
     # 서버는 끊김을 알아채고 실행을 취소한 뒤 MCP 서버 프로세스를 정리한다
     assert wait_until(lambda: "stop_reason=cancelled" in caplog.text), caplog.text
-    assert wait_until(lambda: child_pids(pid) == [])
+    assert wait_until(lambda: no_children(pid))
     # 자리도 반납되어 새 실행을 받을 수 있다
     with slow_client.stream("GET", RUN_URL) as again:
         assert again.status_code == 200

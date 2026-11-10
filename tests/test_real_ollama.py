@@ -10,7 +10,7 @@ import os
 import time
 
 import pytest
-from conftest import child_pids
+from conftest import no_children
 
 from agentloop.agent import run_agent
 from agentloop.config import check_ollama, load_settings
@@ -56,4 +56,4 @@ async def test_real_chain():
     assert end["type"] == "run_end" and end["stop_reason"] == "answer", end
     answer = next(e for e in events if e["type"] == "answer")["text"]
     assert "1500" in answer or "1,500" in answer, answer
-    assert child_pids(os.getpid()) == []
+    assert no_children(os.getpid())

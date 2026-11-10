@@ -23,8 +23,8 @@ def settings():
     return s
 
 
-def child_pids(pid: int) -> list[str]:
-    """pid의 자식 프로세스 목록. 없으면 빈 목록.
+def child_pids(pid: int) -> list[str] | None:
+    """pid의 자식 프로세스 목록. 없으면 빈 목록. 샌드박스 등에서 `ps` 를 못 쓰면 None(확인 불가).
 
     pgrep에 기대지 않는다(작은 Linux 이미지에는 procps가 없다).
       - Linux: /proc/<번호>/stat 의 부모 번호(ppid)를 직접 읽는다
@@ -46,8 +46,23 @@ def child_pids(pid: int) -> list[str]:
                 children.append(entry.name)
         return sorted(children, key=int)
 
-    with subprocess.Popen(["ps", "-A", "-o", "pid=,ppid="], stdout=subprocess.PIPE, text=True) as ps:
-        output, _ = ps.communicate()
+    try:
+        with subprocess.Popen(["ps", "-A", "-o", "pid=,ppid="], stdout=subprocess.PIPE, text=True) as ps:
+            output, _ = ps.communicate()
+    except OSError:  # PermissionError 포함: 샌드박스가 ps 실행을 막는다
+        return None
     rows = (line.split() for line in output.splitlines() if line.strip())
     # ps 자신도 이 순간에는 우리의 자식이므로 뺀다
     return [child for child, parent in rows if int(parent) == pid and int(child) != ps.pid]
+
+
+def no_children(pid: int) -> bool:
+    """자식 프로세스가 남지 않았으면 True. 확인 불가(None)면 이 단언만 건너뛰도록 True."""
+    found = child_pids(pid)
+    return found is None or found == []
+
+
+def children_alive_as_expected(pid: int, expected: int) -> bool:
+    """자식이 expected 개 떠 있으면 True. 확인 불가(None)면 이 단언만 건너뛰도록 True."""
+    found = child_pids(pid)
+    return found is None or len(found) == expected

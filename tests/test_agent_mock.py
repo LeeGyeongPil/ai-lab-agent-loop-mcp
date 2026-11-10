@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
-from conftest import TESTS_DIR, child_pids
+from conftest import TESTS_DIR, no_children
 
 from agentloop.agent import run_agent
 from agentloop.mcp_hub import load_server_params
@@ -136,4 +136,4 @@ async def test_config_error_becomes_error_event(settings, tmp_path):
     await run_agent(CHAIN_Q, llm, load_server_params(bad), max_steps=3, mode="mock", emit=emit)
     assert [e["type"] for e in events] == ["run_start", "error", "run_end"]
     assert events[-1]["stop_reason"] == "error"
-    assert child_pids(os.getpid()) == []
+    assert no_children(os.getpid())

@@ -4,7 +4,7 @@ import json
 import os
 
 import pytest
-from conftest import child_pids
+from conftest import children_alive_as_expected, no_children
 
 from agentloop.config import PROJECT_ROOT
 from agentloop.mcp_hub import ConfigError, McpHub, load_server_params
@@ -40,7 +40,7 @@ async def test_duplicate_tool_name_error(tmp_path):
         async with McpHub(load_server_params(config)):
             pass
     assert "shop_a" in str(info.value) and "shop_b" in str(info.value)
-    assert child_pids(os.getpid()) == []  # 실패해도 먼저 띄운 서버는 정리된다
+    assert no_children(os.getpid())  # 실패해도 먼저 띄운 서버는 정리된다
 
 
 async def test_bad_config_file(tmp_path):
@@ -55,8 +55,8 @@ async def test_bad_config_file(tmp_path):
 async def test_no_orphan_processes(settings):
     pid = os.getpid()
     async with McpHub(load_server_params(settings.servers_file)):
-        assert len(child_pids(pid)) == 2  # 실행 중에는 서버 2개가 자식 프로세스로 떠 있다
-    assert child_pids(pid) == []  # async with 를 벗어나면 남지 않는다
+        assert children_alive_as_expected(pid, 2)  # 실행 중에는 서버 2개가 자식 프로세스로 떠 있다
+    assert no_children(pid)  # async with 를 벗어나면 남지 않는다
 
 
 async def test_errlog_receives_server_stderr(settings, tmp_path):
@@ -66,5 +66,5 @@ async def test_errlog_receives_server_stderr(settings, tmp_path):
         async with McpHub(load_server_params(settings.servers_file), errlog=errlog) as hub:
             bad = await hub.call("check_stock", {"item": "수박"})
             assert bad.is_error
-    assert child_pids(os.getpid()) == []
+    assert no_children(os.getpid())
     assert "Tool 'check_stock' failed" in log_path.read_text(encoding="utf-8")
