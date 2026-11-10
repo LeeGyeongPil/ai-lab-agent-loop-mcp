@@ -10,6 +10,7 @@ import argparse
 import asyncio
 import ipaddress
 import logging
+import socket
 import sys
 
 from agentloop.config import load_settings, resolve_mode
@@ -45,6 +46,22 @@ def describe_host(host: str, port: int) -> tuple[str, str | None]:
         "질문을 실행할 수 있습니다(= 이 PC에서 MCP 서버 프로그램이 실행됩니다). 믿을 수 있는 네트워크에서만 쓰세요."
     )
     return url, warning
+
+
+def port_is_free(host: str, port: int) -> bool:
+    """host:port 를 잠깐 바인드해 보고 닫는다. 이미 쓰이고 있으면 False."""
+    try:
+        infos = socket.getaddrinfo(host or None, port, type=socket.SOCK_STREAM, flags=socket.AI_PASSIVE)
+    except socket.gaierror:
+        return True  # 이름을 못 풀면 여기서 판단하지 않고 uvicorn 에 맡긴다
+    family, socktype, proto, _, addr = infos[0]
+    with socket.socket(family, socktype, proto) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # uvicorn 과 같은 옵션
+        try:
+            sock.bind(addr)
+        except OSError:
+            return False
+    return True
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -94,6 +111,15 @@ def main(argv: list[str] | None = None) -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # Ollama 요청마다 찍히는 줄은 숨긴다
+    # 포트가 이미 쓰이고 있으면 브라우저를 열기 전에 멈춘다(uvicorn 은 바인드보다 앱 시작을 먼저 실행한다).
+    if not port_is_free(args.host, settings.port):
+        print(
+            f"오류: 포트 {settings.port} 을(를) 다른 프로그램이 쓰고 있습니다. "
+            "--port 9000 또는 AGENT_PORT=9000 으로 바꾸세요.",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 2
     # 기본 host는 127.0.0.1: 내 PC에서만 접속된다(이 앱은 MCP 서버 = 내 PC의 프로그램을 실행한다).
     url, warning = describe_host(args.host, settings.port)
     if warning:
