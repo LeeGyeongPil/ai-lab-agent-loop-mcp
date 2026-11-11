@@ -21,6 +21,8 @@ from typing import TextIO
 from mcp import Client, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from agentloop.i18n import t
+
 # 도구 하나가 이 시간보다 오래 걸리면 오류 관찰로 돌려준다(멈춘 도구가 실행 전체를 붙잡지 않게).
 TOOL_TIMEOUT_SECONDS = 30.0
 
@@ -37,21 +39,21 @@ class ToolResult:
     seconds: float
 
 
-def load_server_params(config_path: Path) -> dict[str, StdioServerParameters]:
+def load_server_params(config_path: Path, lang: str = "en") -> dict[str, StdioServerParameters]:
     """mcp_servers.json 을 읽어 {서버 이름: 실행 방법} 을 만든다.
 
     형식은 여러 MCP 호스트 앱이 쓰는 {"mcpServers": {이름: {command, args, env}}} 와 같다.
     """
     if not config_path.exists():
-        raise ConfigError(f"MCP 서버 설정 파일이 없습니다: {config_path.name}")
+        raise ConfigError(t(lang, "hub.no_config", name=config_path.name))
     try:
         data = json.loads(config_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise ConfigError(f"{config_path.name} 의 JSON 형식이 잘못됐습니다: {exc}") from exc
+        raise ConfigError(t(lang, "hub.bad_json", name=config_path.name, error=exc)) from exc
 
     servers = data.get("mcpServers")
     if not isinstance(servers, dict) or not servers:
-        raise ConfigError(f'{config_path.name} 에 "mcpServers" 항목이 비어 있습니다.')
+        raise ConfigError(t(lang, "hub.empty_servers", name=config_path.name))
 
     params = {}
     for name, spec in servers.items():
@@ -74,13 +76,14 @@ def _dump(model) -> dict:
 
 
 class McpHub:
-    def __init__(self, server_params: dict[str, StdioServerParameters], errlog: TextIO | None = None):
+    def __init__(self, server_params: dict[str, StdioServerParameters], errlog: TextIO | None = None, lang: str = "en"):
         """errlog: 서버들의 stderr(로그)를 보낼 파일. None이면 지금 터미널(sys.stderr)에 그대로 나온다.
 
         파일을 열고 닫는 책임은 호출한 쪽에 있다(허브는 빌려 쓰기만 한다).
         """
         self.server_params = server_params
         self.errlog = errlog
+        self.lang = lang  # ConfigError 문구의 언어
         self.clients: dict[str, Client] = {}  # 서버 이름 → 연결
         self.tools: dict[str, list] = {}  # 서버 이름 → 도구 정의 목록(설정 파일 순서 유지)
         self.route: dict[str, str] = {}  # 도구 이름 → 그 도구를 가진 서버 이름
@@ -107,8 +110,7 @@ class McpHub:
                 for tool in listed.tools:
                     if tool.name in self.route:
                         raise ConfigError(
-                            f"도구 이름 '{tool.name}' 이(가) 서버 '{self.route[tool.name]}' 와 '{name}' 에 모두 있습니다. "
-                            "한쪽 도구 이름을 바꾸세요."
+                            t(self.lang, "hub.name_clash", tool=tool.name, first=self.route[tool.name], second=name)
                         )
                     self.route[tool.name] = name
         except BaseException:

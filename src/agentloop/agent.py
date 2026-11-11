@@ -22,6 +22,7 @@ from typing import TextIO
 from mcp import StdioServerParameters
 
 from agentloop.events import Event
+from agentloop.i18n import t
 from agentloop.llm import LLM, strip_think_residue
 from agentloop.mcp_hub import ConfigError, McpHub
 from agentloop.prompts import SYSTEM_PROMPT
@@ -40,8 +41,12 @@ async def run_agent(
     mode: str,
     emit: Emit,
     server_errlog: TextIO | None = None,
+    lang: str = "en",
 ) -> None:
-    """server_errlog: MCP 서버들의 stderr를 보낼 파일(None이면 터미널). CLI가 출력이 섞이지 않게 쓴다."""
+    """server_errlog: MCP 서버들의 stderr를 보낼 파일(None이면 터미널). CLI가 출력이 섞이지 않게 쓴다.
+
+    lang: 오류 안내·빈 답 문구의 언어("en"/"ko"). 이벤트 모양(type·필드 이름)은 언어와 상관없다.
+    """
     started = time.perf_counter()
     stats = {"steps": 0, "tool_calls": 0, "errors": 0}
     stop_reason = "max_steps"  # 답이 나오면 "answer"로 바뀐다
@@ -53,7 +58,7 @@ async def run_agent(
         await send("run_start", mode=mode, model=llm.name, question=question)
 
         # ── 준비: MCP 서버들에 연결하고 도구 목록(tools/list)을 받는다 ──
-        async with McpHub(server_params, errlog=server_errlog) as hub:
+        async with McpHub(server_params, errlog=server_errlog, lang=lang) as hub:
             await send("tools_listed", servers=hub.summary(), wire=hub.list_wire, seconds=_since(started))
 
             messages = [
@@ -80,7 +85,7 @@ async def run_agent(
 
                 # ── 2) 도구 요청이 없으면 = 최종 답 ──
                 if not calls:
-                    await send("answer", step, text=strip_think_residue(content) or "(모델이 빈 답을 냈습니다)")
+                    await send("answer", step, text=strip_think_residue(content) or t(lang, "agent.empty_answer"))
                     stop_reason = "answer"
                     break
 
@@ -132,7 +137,7 @@ async def run_agent(
         raise
     except Exception as exc:  # Ollama 꺼짐, 설정 오류 등
         stop_reason = "error"
-        message, hint = _explain_error(exc)
+        message, hint = _explain_error(exc, lang)
         await send("error", message=message, hint=hint)
 
     _log_run_end(stop_reason, stats, started)
@@ -173,13 +178,13 @@ def _preview(messages: list[dict], limit: int = 400) -> list[dict]:
     return preview
 
 
-def _explain_error(exc: Exception) -> tuple[str, str]:
+def _explain_error(exc: Exception, lang: str = "en") -> tuple[str, str]:
     """예외를 사람이 읽을 문구와 해결 방법(hint)으로 바꾼다."""
     message = f"{type(exc).__name__}: {exc}"
     if isinstance(exc, ConfigError):
-        return str(exc), "mcp_servers.json 과 servers/ 폴더의 서버 코드를 확인하세요."
+        return str(exc), t(lang, "agent.hint_config")
     if isinstance(exc, ConnectionError) or type(exc).__name__ in ("ConnectError", "ConnectTimeout"):
-        return message, "Ollama가 꺼져 있습니다. 터미널에서 `ollama serve`를 실행하거나, 모드를 모의로 바꾸세요."
+        return message, t(lang, "agent.hint_ollama_down")
     if "not found" in str(exc).lower():
-        return message, "모델이 없습니다. `ollama pull qwen3:4b`로 받은 뒤 다시 실행하세요."
+        return message, t(lang, "agent.hint_no_model")
     return message, ""

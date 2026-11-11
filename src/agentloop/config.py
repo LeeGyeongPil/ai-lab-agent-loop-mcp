@@ -6,11 +6,14 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from agentloop.i18n import LANGS, MESSAGES, t
+
 # 이 파일 위치(src/agentloop/config.py)에서 두 단계 위 = 저장소 루트.
 # mcp_servers.json, servers/, scenarios/ 가 여기에 있다.
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-FALLBACK_NOTICE = "Ollama에 연결할 수 없어 모의 모드로 실행합니다"
+# Kept as the Korean sentence so existing imports keep working; both languages live in i18n.MESSAGES.
+FALLBACK_NOTICE = MESSAGES["ko"]["config.fallback"]
 
 
 @dataclass
@@ -67,21 +70,39 @@ def check_ollama(host: str, model: str, timeout: float = 3.0) -> str:
     return "ok" if wanted in names else "no_model"
 
 
-def resolve_mode(settings: Settings) -> tuple[str, str]:
-    """실제로 쓸 모드("mock"/"real")와 터미널에 보여 줄 안내 문구를 정한다."""
+def _decide_mode(settings: Settings) -> tuple[str, str, dict]:
+    """(mode, message key, message params). The Ollama check happens here, once."""
     model = settings.ollama_model
     if settings.mode == "mock":
-        return "mock", "모드: 모의 (AGENT_MODE=mock — 대본대로 움직이는 가짜 LLM + 진짜 MCP 서버)"
+        return "mock", "config.mode_mock", {}
 
     status = check_ollama(settings.ollama_host, model)
     if settings.mode == "real":
         if status == "ok":
-            return "real", f"모드: 실제 (Ollama {model})"
-        return "real", f"모드: 실제 (Ollama {model}) — 경고: Ollama 또는 모델을 찾지 못했습니다. 실행하면 오류 안내가 나옵니다."
+            return "real", "config.mode_real", {"model": model}
+        return "real", "config.mode_real_warn", {"model": model}
 
     # auto: 쓸 수 있으면 실제, 아니면 모의로 내려간다(첫 실행이 막히지 않게).
     if status == "ok":
-        return "real", f"모드: 실제 (Ollama {model})"
+        return "real", "config.mode_real", {"model": model}
     if status == "no_model":
-        return "mock", f"모드: 모의 (Ollama에 {model} 모델이 없어 모의 모드로 실행합니다. 받으려면: ollama pull {model})"
-    return "mock", f"모드: 모의 ({FALLBACK_NOTICE})"
+        return "mock", "config.mode_no_model", {"model": model}
+    return "mock", "config.mode_fallback", {}
+
+
+def _notice(lang: str, key: str, params: dict) -> str:
+    if key == "config.mode_fallback":  # the reason sentence is itself translated
+        params = {"fallback": t(lang, "config.fallback")}
+    return t(lang, key, **params) if params else t(lang, key)
+
+
+def resolve_mode(settings: Settings, lang: str = "en") -> tuple[str, str]:
+    """실제로 쓸 모드("mock"/"real")와 터미널에 보여 줄 안내 문구(lang 언어)를 정한다."""
+    mode, key, params = _decide_mode(settings)
+    return mode, _notice(lang, key, params)
+
+
+def resolve_mode_notices(settings: Settings) -> tuple[str, dict[str, str]]:
+    """resolve_mode 와 같지만 안내 문구를 모든 언어로 돌려준다(웹이 요청마다 고르도록 Ollama 는 한 번만 확인)."""
+    mode, key, params = _decide_mode(settings)
+    return mode, {lang: _notice(lang, key, params) for lang in LANGS}

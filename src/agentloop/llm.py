@@ -98,10 +98,10 @@ class OllamaLLM:
             await client.close()  # HTTP 연결 정리(정상 종료·취소 모두)
 
 
-def make_llm(mode: str, settings) -> LLM:
+def make_llm(mode: str, settings, lang: str = "en") -> LLM:
     """모드에 맞는 LLM을 만든다. mock → 대본대로 움직이는 가짜 LLM, real → Ollama."""
     if mode == "mock":
         from agentloop.mock_llm import ScriptedLLM
 
-        return ScriptedLLM(settings.scenarios_dir, settings.mock_delay_ms)
+        return ScriptedLLM(settings.scenarios_dir, settings.mock_delay_ms, lang)
     return OllamaLLM(settings.ollama_host, settings.ollama_model, settings.num_ctx)

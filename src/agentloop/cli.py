@@ -13,60 +13,66 @@ from agentloop.agent import run_agent
 from agentloop.config import PROJECT_ROOT, Settings
 from agentloop.events import Event
 from agentloop.llm import make_llm
+from agentloop.i18n import t
 from agentloop.mcp_hub import ConfigError, load_server_params
 
 # MCP 서버들의 stderr(로그)를 모아 두는 파일. 실행할 때마다 새로 써서(덮어쓰기) 크기가 계속 커지지 않는다.
 # 터미널로 그대로 보내면 서버 로그 줄이 "[생각] ..." 줄 한가운데에 끼어들어 출력이 깨진다.
 SERVER_LOG_FILE = PROJECT_ROOT / "runs" / "mcp-server-stderr.log"
 
-STOP_LABELS = {"answer": "답을 냄", "max_steps": "최대 회차 도달", "error": "오류", "cancelled": "취소됨"}
+STOP_REASONS = ("answer", "max_steps", "error", "cancelled")
 
 
 def _json(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
-async def print_event(event: Event) -> None:
+async def print_event(event: Event, lang: str = "en") -> None:
     d = event.data
-    head = f"[회차 {event.step}]"
+    head = t(lang, "cli.head", step=event.step)
+
+    def secs(value) -> str:
+        return t(lang, "cli.seconds", seconds=value)
 
     if event.type == "run_start":
-        print(f"질문: {d['question']}  (모델: {d['model']})")
+        print(t(lang, "cli.question", question=d["question"], model=d["model"]))
     elif event.type == "tools_listed":
-        names = " / ".join(f"{s['name']}: {', '.join(t['name'] for t in s['tools'])}" for s in d["servers"])
+        names = " / ".join(f"{s['name']}: {', '.join(t_['name'] for t_ in s['tools'])}" for s in d["servers"])
         count = sum(len(s["tools"]) for s in d["servers"])
-        print(f"[준비] MCP 서버 {len(d['servers'])}개 연결 · 도구 {count}개 ({names}) · {d['seconds']}초")
+        print(t(lang, "cli.prepared", servers=len(d["servers"]), tools=count, names=names, seconds=secs(d["seconds"])))
     elif event.type == "step_start":
-        print(f"{head}[생각] ", end="", flush=True)
+        print(f"{head}{t(lang, 'cli.thinking')}", end="", flush=True)
     elif event.type == "thinking_delta":
         print(d["text"], end="", flush=True)  # 생각이 흘러나오는 대로 바로 찍는다
     elif event.type == "thinking_done":
-        print(f"  ({d['seconds']}초)")
+        print(f"  ({secs(d['seconds'])})")
     elif event.type == "tool_call":
-        mark = " (중복 호출)" if d["duplicate"] else ""
-        print(f"{head}[도구 호출] {d['name']} {_json(d['arguments'])} → 서버 {d['server']}{mark}")
+        mark = t(lang, "cli.duplicate") if d["duplicate"] else ""
+        print(head + t(lang, "cli.tool_call", name=d["name"], arguments=_json(d["arguments"]), server=d["server"], mark=mark))
     elif event.type == "tool_result":
-        label = "[관찰·오류]" if d["is_error"] else "[관찰]"
+        label = t(lang, "cli.observe_error" if d["is_error"] else "cli.observe")
         print(f"{head}{label} {d['observation']}")
     elif event.type == "answer":
-        print(f"{head}[최종 답] {d['text']}")
+        print(f"{head}{t(lang, 'cli.answer')} {d['text']}")
     elif event.type == "error":
-        print(f"[오류] {d['message']}")
+        print(t(lang, "cli.error", message=d["message"]))
         if d["hint"]:
-            print(f"[해결] {d['hint']}")
+            print(t(lang, "cli.hint", hint=d["hint"]))
     elif event.type == "run_end":
+        reason = d["stop_reason"]
+        label = t(lang, f"cli.stop.{reason}") if reason in STOP_REASONS else reason
         print(
-            f"[끝] {STOP_LABELS.get(d['stop_reason'], d['stop_reason'])} · 회차 {d['steps']} · "
-            f"도구 호출 {d['tool_calls']} · 오류 {d['errors']} · 총 {d['seconds']}초"
+            t(lang, "cli.end", reason=label, steps=d["steps"], tool_calls=d["tool_calls"], errors=d["errors"],
+              seconds=secs(d["seconds"]))
         )
 
 
-async def run_cli(question: str, settings: Settings, mode: str) -> int:
+async def run_cli(question: str, settings: Settings, mode: str, lang: str = "en") -> int:
     """질문 하나를 끝까지 돌린다. 종료 코드: 0 정상, 1 오류."""
     try:
-        server_params = load_server_params(settings.servers_file)
+        server_params = load_server_params(settings.servers_file, lang=lang)
     except ConfigError as exc:
-        print(f"[오류] {exc}")
+        print(t(lang, "cli.error", message=exc))
         return 1
 
     stop = {}
@@ -74,7 +80,7 @@ async def run_cli(question: str, settings: Settings, mode: str) -> int:
     async def emit(event: Event) -> None:
         if event.type == "run_end":
             stop["reason"] = event.data["stop_reason"]
-        await print_event(event)
+        await print_event(event, lang)
 
     SERVER_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     # with 블록: 실행이 정상 종료·오류·Ctrl+C 어느 쪽으로 끝나도 파일을 닫는다.
@@ -82,16 +88,17 @@ async def run_cli(question: str, settings: Settings, mode: str) -> int:
     with SERVER_LOG_FILE.open("w", encoding="utf-8") as server_log:
         await run_agent(
             question,
-            make_llm(mode, settings),
+            make_llm(mode, settings, lang),
             server_params,
             max_steps=settings.max_steps,
             mode=mode,
             emit=emit,
             server_errlog=server_log,
+            lang=lang,
         )
 
     log_lines = SERVER_LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
     if log_lines:
         relative = SERVER_LOG_FILE.relative_to(PROJECT_ROOT).as_posix()
-        print(f"[서버 로그] MCP 서버가 남긴 로그 {len(log_lines)}줄은 {relative} 에 있습니다.")
+        print(t(lang, "cli.server_log", count=len(log_lines), path=relative))
     return 1 if stop.get("reason") == "error" else 0

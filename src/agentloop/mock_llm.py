@@ -20,12 +20,11 @@ import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from agentloop.i18n import MESSAGES, t
 from agentloop.llm import Chunk, ToolCall
 
-NO_SCRIPT_ANSWER = (
-    "모의 모드는 예시 질문 3개만 대본이 있습니다. "
-    "실제 모드(Ollama)로 실행하면 아무 질문이나 할 수 있습니다."
-)
+# Kept for existing imports (Korean); the per-language text lives in i18n.MESSAGES.
+NO_SCRIPT_ANSWER = MESSAGES["ko"]["mock.no_script_answer"]
 
 PIECE_SIZE = 3  # 글자를 몇 자씩 흘려 보낼지
 
@@ -41,9 +40,9 @@ def _pieces(text: str) -> list[str]:
 
 
 class ScriptedLLM:
-    name = "모의 LLM (대본)"
-
-    def __init__(self, scenarios_dir: Path, delay_ms: int = 25):
+    def __init__(self, scenarios_dir: Path, delay_ms: int = 25, lang: str = "en"):
+        self.lang = lang
+        self.name = t(lang, "mock.name")  # 화면에 보이는 이름만 언어를 따른다
         self.scenarios = load_scenarios(scenarios_dir)
         self.delay = delay_ms / 1000
 
@@ -60,7 +59,7 @@ class ScriptedLLM:
 
         scenario = self.pick_scenario(question)
         if scenario is None:
-            turn = {"thinking": "이 질문에 맞는 대본이 없다. 안내 문구로 답하자.", "answer": NO_SCRIPT_ANSWER}
+            turn = {"thinking": t(self.lang, "mock.no_script_thinking"), "answer": t(self.lang, "mock.no_script_answer")}
         else:
             turns = scenario["turns"]
             # 대본이 끝났는데 또 불리면 마지막 회차를 되풀이한다(최대 회차 가드 시험용)

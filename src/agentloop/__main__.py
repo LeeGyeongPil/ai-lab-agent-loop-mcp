@@ -2,6 +2,7 @@
 
     uv run agent-loop                    # 웹 화면 (http://127.0.0.1:8765), 브라우저가 열린다
     uv run agent-loop --mock             # 모의 모드로 강제
+    uv run agent-loop --lang ko ...      # 화면 언어: en | ko (AGENT_LOOP_LANG, LANG 으로도 정한다)
     uv run agent-loop --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
     uv run agent-loop --mock --host 0.0.0.0 --no-browser   # 컨테이너·다른 기기에서 접속할 때
 """
@@ -10,10 +11,12 @@ import argparse
 import asyncio
 import ipaddress
 import logging
+import os
 import socket
 import sys
 
-from agentloop.config import load_settings, resolve_mode
+from agentloop.config import load_settings, resolve_mode_notices
+from agentloop.i18n import LANGS, resolve_lang, t
 
 
 DEFAULT_HOST = "127.0.0.1"
@@ -21,7 +24,7 @@ DEFAULT_HOST = "127.0.0.1"
 ANY_ADDRESS = {"0.0.0.0": "127.0.0.1", "::": "[::1]", "": "127.0.0.1"}
 
 
-def describe_host(host: str, port: int) -> tuple[str, str | None]:
+def describe_host(host: str, port: int, lang: str = "en") -> tuple[str, str | None]:
     """웹 서버를 열 주소 → (브라우저에 넣을 주소, 경고 문구 또는 None).
 
     127.0.0.1·localhost 처럼 내 PC 안에서만 닿는 주소면 경고가 없다.
@@ -29,7 +32,7 @@ def describe_host(host: str, port: int) -> tuple[str, str | None]:
     """
     if host in ANY_ADDRESS:
         url = f"http://{ANY_ADDRESS[host]}:{port}"
-        where = "이 PC의 모든 네트워크 주소"
+        where = t(lang, "main.where_any")
     else:
         shown = f"[{host}]" if ":" in host else host  # IPv6 주소는 대괄호로 감싼다
         url = f"http://{shown}:{port}"
@@ -41,10 +44,7 @@ def describe_host(host: str, port: int) -> tuple[str, str | None]:
                 return url, None
         except ValueError:
             pass  # 호스트 이름이면 루프백인지 알 수 없으니 경고한다
-    warning = (
-        f"경고: 웹 서버를 {where}({host or '모든 주소'})에 엽니다. 같은 네트워크의 다른 기기도 접속해서 "
-        "질문을 실행할 수 있습니다(= 이 PC에서 MCP 서버 프로그램이 실행됩니다). 믿을 수 있는 네트워크에서만 쓰세요."
-    )
+    warning = t(lang, "main.warning", where=where, host=host or t(lang, "main.all_addresses"))
     return url, warning
 
 
@@ -64,25 +64,42 @@ def port_is_free(host: str, port: int) -> bool:
     return True
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="agent-loop", description="MCP 도구를 쓰는 에이전트 루프를 한 단계씩 보여 줍니다.")
-    parser.add_argument("question", nargs="?", help="--cli 모드에서 물어볼 질문")
-    parser.add_argument("--cli", action="store_true", help="웹 대신 터미널에 텍스트 타임라인을 찍는다")
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("--mock", action="store_true", help="모의 모드(대본 LLM + 진짜 MCP 서버)")
-    group.add_argument("--real", action="store_true", help="실제 모드(로컬 Ollama)")
-    parser.add_argument("--port", type=int, help="웹 포트(기본 8765)")
-    parser.add_argument(
-        "--host",
-        default=DEFAULT_HOST,
-        help=f"웹 서버를 열 주소(기본 {DEFAULT_HOST} = 내 PC에서만 접속). 0.0.0.0 은 다른 기기에서도 접속된다",
+def _lang_from_argv(argv: list[str] | None) -> str | None:
+    """--lang 값만 먼저 읽는다(--help 문구도 그 언어로 보이게). 잘못된 값은 진짜 파서가 오류로 알린다."""
+    pre = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+    pre.add_argument("--lang")
+    return pre.parse_known_args(argv)[0].lang
+
+
+def parse_args(argv: list[str] | None = None, environ: dict | None = None) -> argparse.Namespace:
+    lang = resolve_lang(_lang_from_argv(argv), os.environ if environ is None else environ)
+    class Formatter(argparse.HelpFormatter):
+        def add_usage(self, usage, actions, groups, prefix=None):
+            # 기본 "usage: " 접두어를 언어 표의 문구로 바꾼다
+            return super().add_usage(usage, actions, groups, t(lang, "main.usage_prefix"))
+
+    parser = argparse.ArgumentParser(
+        prog="agent-loop", description=t(lang, "main.description"), formatter_class=Formatter, add_help=False
     )
-    parser.add_argument("--no-browser", action="store_true", help="브라우저를 자동으로 열지 않는다")
+    # argparse 기본 그룹 제목·-h 문구도 언어 표에서 가져온다
+    parser._positionals.title = t(lang, "main.positionals")
+    parser._optionals.title = t(lang, "main.options")
+    parser.add_argument("-h", "--help", action="help", help=t(lang, "main.help.help"))
+    parser.add_argument("question", nargs="?", help=t(lang, "main.help.question"))
+    parser.add_argument("--cli", action="store_true", help=t(lang, "main.help.cli"))
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--mock", action="store_true", help=t(lang, "main.help.mock"))
+    group.add_argument("--real", action="store_true", help=t(lang, "main.help.real"))
+    parser.add_argument("--port", type=int, help=t(lang, "main.help.port"))
+    parser.add_argument("--host", default=DEFAULT_HOST, help=t(lang, "main.help.host", default=DEFAULT_HOST))
+    parser.add_argument("--no-browser", action="store_true", help=t(lang, "main.help.no_browser"))
+    parser.add_argument("--lang", choices=LANGS, help=t(lang, "main.help.lang"))
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    lang = resolve_lang(args.lang, os.environ)  # --lang > AGENT_LOOP_LANG > LC_ALL > LC_MESSAGES > LANG
     settings = load_settings()
     if args.mock:
         settings.mode = "mock"
@@ -91,8 +108,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.port:
         settings.port = args.port
 
-    mode, notice = resolve_mode(settings)  # auto면 여기서 Ollama를 확인해 real/mock 을 정한다
-    print(notice, flush=True)
+    mode, notices = resolve_mode_notices(settings)  # auto면 여기서 Ollama를 확인해 real/mock 을 정한다
+    print(notices[lang], flush=True)
 
     if args.cli:
         from agentloop.cli import run_cli
@@ -100,9 +117,9 @@ def main(argv: list[str] | None = None) -> int:
 
         question = args.question or load_scenarios(settings.scenarios_dir)[0]["question"]
         try:
-            return asyncio.run(run_cli(question, settings, mode))
+            return asyncio.run(run_cli(question, settings, mode, lang))
         except KeyboardInterrupt:
-            print("\n[중지] 실행을 취소했습니다.")
+            print("\n" + t(lang, "main.cancelled"))
             return 130
 
     import uvicorn
@@ -113,21 +130,16 @@ def main(argv: list[str] | None = None) -> int:
     logging.getLogger("httpx").setLevel(logging.WARNING)  # Ollama 요청마다 찍히는 줄은 숨긴다
     # 포트가 이미 쓰이고 있으면 브라우저를 열기 전에 멈춘다(uvicorn 은 바인드보다 앱 시작을 먼저 실행한다).
     if not port_is_free(args.host, settings.port):
-        print(
-            f"오류: 포트 {settings.port} 을(를) 다른 프로그램이 쓰고 있습니다. "
-            "--port 9000 또는 AGENT_PORT=9000 으로 바꾸세요.",
-            file=sys.stderr,
-            flush=True,
-        )
+        print(t(lang, "main.port_busy", port=settings.port), file=sys.stderr, flush=True)
         return 2
     # 기본 host는 127.0.0.1: 내 PC에서만 접속된다(이 앱은 MCP 서버 = 내 PC의 프로그램을 실행한다).
-    url, warning = describe_host(args.host, settings.port)
+    url, warning = describe_host(args.host, settings.port, lang)
     if warning:
         print(warning, flush=True)
-    print(f"주소: {url}  (끝내려면 Ctrl+C)", flush=True)
+    print(t(lang, "main.address", url=url), flush=True)
     if warning and args.host in ANY_ADDRESS:
-        print(f"      다른 기기에서는 http://<이 PC의 IP 주소>:{settings.port} 로 접속합니다.", flush=True)
-    app = create_app(settings, mode, notice, open_browser=not args.no_browser, url=url)
+        print(t(lang, "main.other_device", port=settings.port), flush=True)
+    app = create_app(settings, mode, notices, open_browser=not args.no_browser, url=url, lang=lang)
     uvicorn.run(app, host=args.host, port=settings.port, log_level="warning")
     return 0
 

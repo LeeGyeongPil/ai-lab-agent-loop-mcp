@@ -5,6 +5,9 @@
     GET /api/tools      연결된 MCP 서버와 도구 목록(tools/list) — 부를 때마다 서버를 새로 띄워 확인
     GET /api/run?q=&mode=   질문 하나를 실행하고 이벤트를 SSE로 흘려보낸다(동시에 1개만)
 
+세 /api 경로는 선택 쿼리 lang=en|ko 를 받아 서버가 만드는 문구(오류·안내·모의 LLM 이름)를 그 언어로 낸다.
+없거나 잘못된 값이면 서버를 시작할 때 정한 언어를 쓴다. JSON 키·이벤트 모양은 언어와 상관없다.
+
 브라우저 연결이 끊기면(탭 닫기·중지 버튼) 실행 중인 에이전트를 취소하고 MCP 서버 프로세스를 정리한다.
 """
 
@@ -24,6 +27,7 @@ from starlette.staticfiles import StaticFiles
 from agentloop.agent import run_agent
 from agentloop.config import Settings
 from agentloop.events import Event
+from agentloop.i18n import DEFAULT_LANG, normalize_lang, t
 from agentloop.llm import make_llm
 from agentloop.mcp_hub import ConfigError, McpHub, load_server_params
 from agentloop.mock_llm import load_scenarios
@@ -64,8 +68,24 @@ class RunStreamResponse(EventSourceResponse):
             self.slot.release()
 
 
-def create_app(settings: Settings, mode: str, notice: str, open_browser: bool = False, url: str | None = None) -> Starlette:
+def create_app(
+    settings: Settings,
+    mode: str,
+    notice: str | dict[str, str],
+    open_browser: bool = False,
+    url: str | None = None,
+    lang: str = DEFAULT_LANG,
+) -> Starlette:
+    """notice: 모드 안내 문구. 문자열 하나 또는 {언어: 문구}. lang: 요청에 lang 쿼리가 없을 때 쓸 언어."""
     slot = RunSlot()  # 앱 하나에 자리 하나 (전역 변수 대신 앱에 묶어 둔다)
+
+    def request_lang(request: Request) -> str:
+        return normalize_lang(request.query_params.get("lang")) or normalize_lang(lang) or DEFAULT_LANG
+
+    def notice_for(chosen: str) -> str:
+        if isinstance(notice, str):
+            return notice
+        return notice.get(chosen) or notice.get(DEFAULT_LANG) or next(iter(notice.values()), "")
 
     async def index(request: Request):
         return FileResponse(STATIC_DIR / "index.html")
@@ -74,7 +94,7 @@ def create_app(settings: Settings, mode: str, notice: str, open_browser: bool = 
         return JSONResponse(
             {
                 "mode": mode,
-                "notice": notice,
+                "notice": notice_for(request_lang(request)),
                 "model": settings.ollama_model,
                 "max_steps": settings.max_steps,
                 "examples": [s["question"] for s in load_scenarios(settings.scenarios_dir)],
@@ -84,27 +104,29 @@ def create_app(settings: Settings, mode: str, notice: str, open_browser: bool = 
         )
 
     async def api_tools(request: Request):
+        chosen = request_lang(request)
         try:
-            async with McpHub(load_server_params(settings.servers_file)) as hub:
+            async with McpHub(load_server_params(settings.servers_file, lang=chosen), lang=chosen) as hub:
                 return JSONResponse({"servers": hub.summary(), "wire": hub.list_wire})
         except ConfigError as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
 
     async def api_run(request: Request):
+        chosen = request_lang(request)
         question = request.query_params.get("q", "").strip()
         run_mode = request.query_params.get("mode", mode)
         if not question or len(question) > MAX_QUESTION_CHARS:
-            return JSONResponse({"error": f"질문은 1~{MAX_QUESTION_CHARS}자로 입력하세요."}, status_code=400)
+            return JSONResponse({"error": t(chosen, "web.bad_question", max=MAX_QUESTION_CHARS)}, status_code=400)
         if run_mode not in ("mock", "real"):
-            return JSONResponse({"error": "mode는 mock 또는 real 입니다."}, status_code=400)
+            return JSONResponse({"error": t(chosen, "web.bad_mode")}, status_code=400)
         try:
-            server_params = load_server_params(settings.servers_file)
+            server_params = load_server_params(settings.servers_file, lang=chosen)
         except ConfigError as exc:
             return JSONResponse({"error": str(exc)}, status_code=500)
         if not slot.try_take():
-            return JSONResponse({"error": "다른 실행이 진행 중입니다. 끝난 뒤 다시 시도하세요."}, status_code=409)
+            return JSONResponse({"error": t(chosen, "web.busy")}, status_code=409)
 
-        llm = make_llm(run_mode, settings)
+        llm = make_llm(run_mode, settings, chosen)
 
         async def event_stream():
             # 에이전트는 별도 작업(task)으로 돌고, 이벤트를 대기열에 넣는다. 여기서는 꺼내서 보내기만 한다.
@@ -113,7 +135,7 @@ def create_app(settings: Settings, mode: str, notice: str, open_browser: bool = 
             async def produce():
                 try:
                     await run_agent(
-                        question, llm, server_params, max_steps=settings.max_steps, mode=run_mode, emit=queue.put
+                        question, llm, server_params, max_steps=settings.max_steps, mode=run_mode, emit=queue.put, lang=chosen
                     )
                 finally:
                     with contextlib.suppress(asyncio.QueueFull):
