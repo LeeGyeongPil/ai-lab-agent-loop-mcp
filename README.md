@@ -1,5 +1,7 @@
 # 에이전트 루프와 MCP — 도구를 쓰는 AI가 어떻게 움직이는지 한 단계씩 보기
 
+**한국어** | [English](README.en.md)
+
 > **English summary** — A small, transparent demo of a tool-using AI agent loop (plan → act → observe, repeated) that talks to two MCP (Model Context Protocol) servers. Run `uv run agent-loop --mock` and the browser shows every step: the model's thinking, each `tools/call` request, each result, and the growing message history. Mock mode needs no model and no network; real mode uses a local Ollama model (`qwen3:4b`).
 
 ![예시 질문 하나를 실행하는 동안 생각, 도구 호출, 관찰 카드가 차례로 쌓이고 루프 그림의 강조 표시가 옮겨 가는 화면](docs/images/00-hero-loop.gif)
