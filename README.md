@@ -4,7 +4,7 @@
 
 A small, transparent demo of a tool-using AI agent loop (plan → act → observe, repeated) that talks to two MCP (Model Context Protocol) servers. Run `uv run agent-loop --mock` and the browser shows every step: the model's thinking, each `tools/call` request, each result, and the growing message history. Mock mode needs no model and no network; real mode uses a local Ollama model (`qwen3:4b`).
 
-![Screen while one example question runs: thinking, tool-call and observation cards pile up and the highlight in the loop diagram moves along](docs/images/00-hero-loop.gif)
+![Screen while one example question runs: thinking, tool-call and observation cards pile up and the highlight in the loop diagram moves along. The screenshot shows the Korean UI](docs/images/00-hero-loop.gif)
 <sub>When you enter one question, "thinking → tool call → observation" cards pile up and the conversation history on the right grows one line at a time. (Recorded in mock mode)</sub>
 
 ## One-line summary
@@ -49,17 +49,17 @@ uv run agent-loop --mock
 The two lines below appear in the terminal and a browser opens. Press `Ctrl+C` to quit.
 
 ```text
-모드: 모의 (AGENT_MODE=mock — 대본대로 움직이는 가짜 LLM + 진짜 MCP 서버)
-주소: http://127.0.0.1:8765  (끝내려면 Ctrl+C)
+Mode: mock (AGENT_MODE=mock - a scripted fake LLM + real MCP servers)
+Address: http://127.0.0.1:8765  (press Ctrl+C to quit)
 ```
 
-(Mode: mock (AGENT_MODE=mock — a fake LLM that follows a script + real MCP servers). Address: http://127.0.0.1:8765 (Ctrl+C to quit).)
+(In a Korean locale, or with `--lang ko`, the same two lines are printed in Korean. See "Changing the display language" below.)
 
 If the browser doesn't open, open the address above yourself. On the first run it takes a little while because uv downloads packages.
 
 **What is mock mode?** It is a mode where a "fake model that speaks from a script" takes the place of the AI model. It runs without a model and the result is the same every time. However, the tool side (the MCP servers) is **real**: the server processes actually start, and messages are actually exchanged.
 
-![First screen. Numbered marks on the mode badge, the connected MCP server list and the example question buttons](docs/images/01-first-screen.png)
+![First screen. Numbered marks on the mode badge, the connected MCP server list and the example question buttons. The screenshot shows the Korean UI](docs/images/01-first-screen.png)
 <sub>The first screen. 1 the current mode, 2 the tool list the servers reported, 3 example questions to click.</sub>
 
 To run with a real local model (downloads about 2.5GB of model):
@@ -69,19 +69,31 @@ ollama pull qwen3:4b
 uv run agent-loop --real
 ```
 
+## Changing the display language
+
+The screen and the terminal output come in **English and Korean**. English is the default; Korean is used when you ask for it or when your system language is Korean.
+
+- **Terminal (CLI):** `uv run agent-loop --lang en --cli --mock "..."` for English or `--lang ko` for Korean (`--lang en|ko`). Without the option the language is taken from the `AGENT_LOOP_LANG` environment variable (`en` or `ko`), then from `LC_ALL`, `LC_MESSAGES` and `LANG` in that order. A value starting with `ko` (for example `ko_KR.UTF-8`) means Korean; anything else means English. `--help` follows the same choice. An invalid `--lang` value stops with exit code 2.
+- **Web screen:** use the **English / 한국어** menu in the header. Your choice is saved in the browser (`localStorage`) and kept after a reload. Only the first visit picks the language from the browser's language. Messages produced by the server (errors, the mode notice, the mock model's name) follow the same choice.
+- **What stays as it is:** the example questions and the shop data are Korean demo data, so they appear in Korean in the English UI too. MCP tool names and schemas, the event JSON field names, log files and exit codes do not depend on the language.
+
+> Upgrading from 0.1.x: in a non-Korean environment the default output language is now English (it used to be Korean). To keep the old output, run with `--lang ko` or set `AGENT_LOOP_LANG=ko`.
+
 ## Step by step
+
+> The web screenshots below show the Korean UI. The English UI has the same layout, with an English / 한국어 menu in the header.
 
 ### Step 1. See the "tool list" on the first screen
 
-Look at **연결된 MCP 서버** ("Connected MCP servers") on the left of the screen. You'll see 3 tools (`list_items`, `check_stock`, `get_price`) on the `shop` server and 1 tool (`count_chars`) on the `my_tools` server.
+Look at **Connected MCP servers** (**연결된 MCP 서버** in the Korean screen) on the left of the screen. You'll see 3 tools (`list_items`, `check_stock`, `get_price`) on the `shop` server and 1 tool (`count_chars`) on the `my_tools` server.
 
 This list is the answer the program got when it asked each server at startup, "what tools do you have?" In MCP this question is called **`tools/list`**. It contains each tool's **name, description and input format**, and the AI model reads exactly this text to choose which tool to call. In other words, a tool description is the user manual the model reads.
 
 ### Step 2. Run example 1 — a loop where results change the next action
 
-Click the button **예시 1: 가장 재고가 많은 과일의 가격은 얼마야?** ("Example 1: What is the price of the fruit with the most stock?"). A few seconds later the screen looks like this.
+Click the button **Example 1: 가장 재고가 많은 과일의 가격은 얼마야?** (the question is Korean demo data: "What is the price of the fruit with the most stock?"). A few seconds later the screen looks like this.
 
-![Full screen after example 1 finishes. Cards for rounds 1 to 4 are stacked, with the conversation history on the right](docs/images/02-chain-done.png)
+![Full screen after example 1 finishes. Cards for rounds 1 to 4 are stacked, with the conversation history on the right. The screenshot shows the Korean UI](docs/images/02-chain-done.png)
 <sub>Gray is thinking, blue is a tool call, green is an observation (the result the tool returned), and purple is the final answer.</sub>
 
 Read the cards from top to bottom.
@@ -93,13 +105,13 @@ Read the cards from top to bottom.
 
 The key point is that **without the result of round 1 (the item list), the action of round 2 could not have been decided.** The observation determines the next action. That is the loop.
 
-Also look at the **모델에게 보낸 대화 기록** ("Conversation history sent to the model") on the right. Entries grow with each round. The model has no memory, so in every round it re-reads "the entire conversation so far" and then says its next words.
+Also look at the **Conversation history sent to the model** on the right. Entries grow with each round. The model has no memory, so in every round it re-reads "the entire conversation so far" and then says its next words.
 
 ### Step 3. Open the MCP messages yourself
 
-Click **MCP 요청 보기 / MCP 응답 보기** ("View MCP request / View MCP response") on the tool-call card and the observation card to expand them.
+Click **Show MCP request (tools/call)** and **Show MCP response (content · structuredContent · isError)** on the tool-call card and the observation card to expand them.
 
-![Screen with the tool-call card and observation card expanded, showing the tools/call request and the result JSON](docs/images/03-mcp-messages.png)
+![Screen with the tool-call card and observation card expanded, showing the tools/call request and the result JSON. The screenshot shows the Korean UI](docs/images/03-mcp-messages.png)
 <sub>The upper request is `tools/call`, and the lower response contains `structuredContent` and `isError`.</sub>
 
 - Request: `"method": "tools/call"`, the tool name and the arguments (`arguments`). This is the MCP message that says "please run this tool with these values."
@@ -109,27 +121,27 @@ As the note at the bottom of the screen says, the request side is reconstructed 
 
 ### Step 4. An error is an observation too
 
-Click **예시 2: 수박 재고 있어?** ("Example 2: Is watermelon in stock?"). This shop has no watermelon.
+Click **Example 2: 수박 재고 있어?** ("Is watermelon in stock?"). This shop has no watermelon.
 
-![A red observation card marked isError true when asked about watermelon stock, and the next round that reads that error and answers](docs/images/04-error-observed.png)
+![A red observation card marked isError true when asked about watermelon stock, and the next round that reads that error and answers. The screenshot shows the Korean UI](docs/images/04-error-observed.png)
 <sub>The red card is the error observation. This text goes back to the model as is and becomes material for the next round of thinking.</sub>
 
 The tool returns the error `Error executing tool check_stock: unknown item: 수박. known: ['사과', '바나나', '포도']` (the leading `Error executing tool <tool name>:` is a prefix the SDK attaches; "수박" is watermelon). The program does not stop here; it **appends this error to the conversation history as an observation.** The model reads the information that "only three items are possible" and answers "we don't carry watermelon." If you **put a clue for fixing it** in the error text, the model can correct itself.
 
 ### Step 5. View one step at a time
 
-Check **한 단계씩 보기** ("View step by step") and run example 1 again. Now each time you click the **다음 단계** ("Next step") button, one card appears.
+Check **Step by step** and run example 1 again. Now each time you click the **Next step** button, one card appears.
 
-![Screen with step-by-step view on and Next step clicked five times. Only up to round 2's thinking is visible](docs/images/06-step-mode.png)
+![Screen with step-by-step view on and Next step clicked five times. Only up to round 2's thinking is visible. The screenshot shows the Korean UI](docs/images/06-step-mode.png)
 <sub>1 The button shows the number of steps remaining. 2 Only as many cards appear as you clicked. The loop diagram on the right highlights the current step.</sub>
 
 It is good for taking the loop apart slowly. Before clicking the button, try guessing first: "what will the next card be?"
 
 ### Step 6. See your own tool being called (example 3)
 
-Click **예시 3: '에이전트 루프'는 몇 글자야?** ("Example 3: How many characters is '에이전트 루프' (agent loop)?").
+Click **Example 3: '에이전트 루프'는 몇 글자야?** ("How many characters is '에이전트 루프' (agent loop)?").
 
-![The count_chars tool is called and returns 7 characters, 6 without spaces](docs/images/05-my-tool.png)
+![The count_chars tool is called and returns 7 characters, 6 without spaces. The screenshot shows the Korean UI](docs/images/05-my-tool.png)
 <sub>This time `count_chars` of the `my_tools` server was called, not `shop`.</sub>
 
 AI models often get character counting wrong. So the job is handed to a tool that is a few lines of function, and the model reads the result and answers. The code of this tool is in `servers/my_tools_server.py`, and you'll build one more in "Try changing things yourself" below.
@@ -139,13 +151,14 @@ AI models often get character counting wrong. So the job is handed to a tool tha
 The same loop runs even without a screen.
 
 ```bash
-uv run agent-loop --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
+uv run agent-loop --lang en --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
+# Korean labels: --lang ko (see "Changing the display language")
 ```
 
 ![Terminal output printing the thinking, tool calls and observations of each round, one line at a time](docs/images/07-cli.png)
-<sub>The same events as the web screen, printed as text. The final `[끝]` ("[end]") line summarizes the number of rounds and tool calls.</sub>
+<sub>The same events as the web screen, printed as text. The final `[End]` line (`[끝]` in Korean) summarizes the number of rounds and tool calls.</sub>
 
-The log the MCP server leaves (stderr) is collected in `runs/mcp-server-stderr.log` instead of the terminal so that output doesn't get mixed (rewritten on each run). If a log exists, the end notes it like `[서버 로그] MCP 서버가 남긴 로그 1줄은 runs/mcp-server-stderr.log 에 있습니다.` ("[server log] 1 line of log left by the MCP server is in runs/mcp-server-stderr.log."). If you run example 2 (watermelon), you can see the `Tool 'check_stock' failed: ...` line the server left in this file.
+The log the MCP server leaves (stderr) is collected in `runs/mcp-server-stderr.log` instead of the terminal so that output doesn't get mixed (rewritten on each run). If a log exists, the end notes it like `[Server log] The MCP servers wrote 1 log line(s) to runs/mcp-server-stderr.log.` (`[서버 로그] ...` in Korean). If you run example 2 (watermelon), you can see the `Tool 'check_stock' failed: ...` line the server left in this file.
 
 ### Step 8. Run with a real model
 
@@ -194,11 +207,12 @@ MCP's role is steps 2 and 4, that is, it defines **how tools are announced (`too
 | [`src/agentloop/mcp_hub.py`](src/agentloop/mcp_hub.py) | Connecting MCP servers, merging tool lists, calling tools |
 | [`src/agentloop/llm.py`](src/agentloop/llm.py) | Streaming thinking from Ollama |
 | [`src/agentloop/mock_llm.py`](src/agentloop/mock_llm.py), [`scenarios/`](scenarios) | The scripted model and scripts for mock mode |
+| [`src/agentloop/i18n.py`](src/agentloop/i18n.py) | English / Korean message table and language choice for the CLI and server messages (the web screen has its own table at the top of `static/app.js`) |
 | [`servers/shop_server.py`](servers/shop_server.py), [`servers/my_tools_server.py`](servers/my_tools_server.py) | The MCP server side (the side that holds the tools) |
 | [`src/agentloop/web.py`](src/agentloop/web.py), [`static/`](src/agentloop/static) | The web screen and event relay |
 | [`tests/`](tests) | Tests (they run in mock mode and need no key or model). Run with `uv run pytest` |
 
-**Running the tests:** `uv run pytest` finishes within a minute without a key or model (tests that need a real Ollama are skipped by default, and are run separately with `uv run pytest -m ollama`).
+**Running the tests:** `uv run pytest` finishes within a minute without a key or model (76 tests pass; tests that need a real Ollama are skipped by default, and are run separately with `uv run pytest -m ollama`).
 
 We recommend reading in the order `agent.py` → `mcp_hub.py` → `servers/`. Here are the three key places.
 
@@ -283,31 +297,29 @@ def reverse_text(text: str) -> Reversed:
     return {"text": text[::-1]}
 ```
 
-Save, and click the **다시 불러오기** ("Reload") button on the web screen (servers start fresh on each run) and it changes to `my_tools · 도구 2개` ("my_tools · 2 tools") and a `reverse_text` card appears. In the terminal it shows in the `[준비]` ("[ready]") line as `my_tools: count_chars, reverse_text`. Mock mode has scripts only for the 3 example questions, so to actually get the new tool called you have to ask in real mode (`--real`), such as "hello를 거꾸로 써 줘" ("write hello backwards"). If you made a separate new server file, add one line to `mcp_servers.json`.
+Save, and click the **Reload** button on the web screen (servers start fresh on each run) and it changes to `my_tools · tools: 2` and a `reverse_text` card appears. In the terminal it shows in the `[Ready]` line as `my_tools: count_chars, reverse_text`. Mock mode has scripts only for the 3 example questions, so to actually get the new tool called you have to ask in real mode (`--real`), such as "hello를 거꾸로 써 줘" ("write hello backwards"). If you made a separate new server file, add one line to `mcp_servers.json`.
 
 **2. Reduce the maximum rounds** — reduce the round cap to 2 with an environment variable.
 
 ```bash
-AGENT_MAX_STEPS=2 uv run agent-loop --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
+AGENT_MAX_STEPS=2 uv run agent-loop --lang en --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
 ```
 
-Example 1 needs 4 rounds, so it ends like this.
+Example 1 needs 4 rounds, so it ends like this (the last line of the output).
 
 ```text
-[끝] 최대 회차 도달 · 회차 2 · 도구 호출 4 · 오류 0 · 총 2.85초
+[End] max steps reached - steps 2 - tool calls 4 - errors 0 - total 1.9s
 ```
-
-(Meaning: "[end] maximum rounds reached · round 2 · tool calls 4 · errors 0 · total 2.85 s".)
 
 Stopping without an answer is the role of the "maximum rounds" guard. It protects the program in a situation where the model calls the same tool forever.
 
 **3. What if the error text is hidden?** — change `raise ToolError(` to `raise ValueError(` in `servers/shop_server.py` and run example 2 again. The observation changes like this.
 
 ```text
-[회차 1][관찰·오류] Error executing tool check_stock
+[Step 1][Observation-error] Error executing tool check_stock
 ```
 
-(The prefix reads "[round 1][observation·error]".)
+(Run it with `uv run agent-loop --lang en --cli --mock "수박 재고 있어?"`.)
 
 Originally (`ToolError`), the cause text follows the prefix, like `Error executing tool check_stock: unknown item: 수박. …`. If you change to a general exception, only the prefix remains and the cause text is hidden. The model can no longer know "what is possible", so the clue for fixing it disappears. (The scripted model in mock mode gives the same answer anyway, but with a real model there is a difference. After checking, put it back as it was.)
 
@@ -317,13 +329,14 @@ Originally (`ToolError`), the cause text follows the prefix, like `Error executi
 |---|---|---|
 | `VIRTUAL_ENV ... does not match the project environment` warning | Another Python virtual environment is active in the shell | You can ignore it. To get rid of it, `deactivate` or `env -u VIRTUAL_ENV uv run ...` |
 | The server won't start because the address is already in use | Another program uses port 8765 | `uv run agent-loop --port 9000` or `AGENT_PORT=9000` |
-| The mode starts as "모의" (mock) | Ollama is off or has no model, or Ollama was busy and didn't answer within 3 seconds | Run `ollama serve` and `ollama pull qwen3:4b`. If the detection wavers, force it with `--real` |
-| In real mode the first round seems stuck for a long time | The model is being loaded into memory | Wait through the thinking card's "모델 응답 기다리는 중… n초" ("waiting for the model response… n seconds") |
+| The mode badge shows "Mock mode" | Ollama is off or has no model, or Ollama was busy and didn't answer within 3 seconds | Run `ollama serve` and `ollama pull qwen3:4b`. If the detection wavers, force it with `--real` |
+| In real mode the first round seems stuck for a long time | The model is being loaded into memory | Wait through the thinking card's "Waiting for the model… ns" |
 | In mock mode, asking another question only shows a notice | Scripts exist only for the 3 examples | In real mode (`--real`) any question works |
-| A new tool doesn't show on screen | The list wasn't fetched again after editing the server code | The **다시 불러오기** ("Reload") button or a page refresh |
-| Error card `도구 이름 '…' 이(가) 서버 'a' 와 'b' 에 모두 있습니다` ("tool name '…' exists on both servers 'a' and 'b'") | The same tool name on two servers | Rename the tool on one side |
+| A new tool doesn't show on screen | The list wasn't fetched again after editing the server code | The **Reload** button or a page refresh |
+| Error card `Tool name '…' exists on both server 'a' and 'b'. Rename the tool on one of them.` | The same tool name on two servers | Rename the tool on one side |
 | A `Tool '…' failed` line shows in the terminal in web mode | You're seeing the MCP server's log (stderr) | Normal. With `--cli` this log goes to `runs/mcp-server-stderr.log`. Don't use `print()` in server code (standard output is reserved for MCP messages) |
 | I started it in Docker, a virtual machine or a remote dev server and can't connect from my PC's browser | The web server by default opens only on `127.0.0.1` (the computer itself) | Open to all addresses with `--host 0.0.0.0`. Docker also needs the port exported: inside `docker run -p 8765:8765 ...`, run `uv run agent-loop --mock --host 0.0.0.0 --no-browser` and then open `http://127.0.0.1:8765`. For a remote server, port forwarding with `ssh -L 8765:127.0.0.1:8765 <server>` is safer than changing `--host` |
+| `--lang xx` prints a usage line in one language and the error sentence in English | argparse prints its own "invalid choice" sentence in English, even when the system language is Korean | Known limitation. Use `en` or `ko`; the exit code is 2 either way |
 
 **Caution:** An stdio MCP server **runs code on my PC**. The web screen of this demo by default opens only on `127.0.0.1` (my PC). If you pass `--host 0.0.0.0`, other devices on the same network can also run questions (a warning appears at startup), so use it only on a trusted network. When you add a server you didn't write to `mcp_servers.json`, check its code and register only those you trust.
 
@@ -339,7 +352,7 @@ Many MCP examples found on the web are based on the old version (SDK v1), and co
 
 ## Further reading
 
-- Try another model: `OLLAMA_MODEL=<a model that supports tool calling> uv run agent-loop --real`. This demo was verified only with `qwen3:4b`. The environment variables (`AGENT_MODE`, `OLLAMA_HOST`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX`, `AGENT_MAX_STEPS`, `AGENT_PORT`, `MOCK_DELAY_MS`, `MCP_SERVERS_FILE`) are described in [.env.example](.env.example).
+- Try another model: `OLLAMA_MODEL=<a model that supports tool calling> uv run agent-loop --real`. This demo was verified only with `qwen3:4b`. The environment variables (`AGENT_MODE`, `OLLAMA_HOST`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX`, `AGENT_MAX_STEPS`, `AGENT_PORT`, `MOCK_DELAY_MS`, `MCP_SERVERS_FILE`, `AGENT_LOOP_LANG`) are described in [.env.example](.env.example).
 - Connecting a remote server: this demo uses only stdio. For connecting over HTTP, see the [Streamable HTTP transport specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports).
 - [MCP specification](https://modelcontextprotocol.io/specification/latest) — the full protocol description
 - [MCP Tools specification](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) — `tools/list`, `tools/call`, `isError`

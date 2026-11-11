@@ -51,6 +51,8 @@ uv run agent-loop --mock
 주소: http://127.0.0.1:8765  (끝내려면 Ctrl+C)
 ```
 
+(한국어가 아닌 환경에서는 같은 두 줄이 영어로 나옵니다. 이 문서의 한국어 화면 예시는 `--lang ko` 기준입니다. 아래 "화면 언어 바꾸기"를 보세요.)
+
 브라우저가 열리지 않으면 위 주소를 직접 여세요. 처음 실행할 때는 uv가 패키지를 내려받느라 시간이 조금 걸립니다.
 
 **모의 모드란?** AI 모델 자리에 "대본대로 말하는 가짜 모델"을 둔 모드입니다. 모델이 없어도 돌아가고 결과가 매번 같습니다. 다만 도구 쪽(MCP 서버)은 **진짜**입니다. 서버 프로세스가 실제로 뜨고, 메시지를 실제로 주고받습니다.
@@ -64,6 +66,16 @@ uv run agent-loop --mock
 ollama pull qwen3:4b
 uv run agent-loop --real
 ```
+
+## 화면 언어 바꾸기
+
+화면과 터미널 출력은 **영어·한국어** 두 언어로 나옵니다. 기본은 영어이고, 직접 고르거나 시스템 언어가 한국어이면 한국어로 나옵니다.
+
+- **터미널(CLI):** `uv run agent-loop --lang ko --cli --mock "..."` (`--lang en|ko`). 옵션이 없으면 `AGENT_LOOP_LANG` 환경 변수(`en` 또는 `ko`), 그다음 `LC_ALL`, `LC_MESSAGES`, `LANG` 순으로 정합니다. 값이 `ko` 로 시작하면(예: `ko_KR.UTF-8`) 한국어, 그 밖에는 영어입니다. `--help` 도 같은 선택을 따릅니다. 잘못된 `--lang` 값은 종료 코드 2 로 멈춥니다.
+- **웹 화면:** 화면 위쪽의 **English / 한국어** 메뉴로 고릅니다. 고른 값은 브라우저(`localStorage`)에 저장되어 새로고침해도 유지됩니다. 처음 접속할 때만 브라우저 언어로 정합니다. 서버가 만드는 문구(오류, 모드 안내, 모의 모델 이름)도 같은 선택을 따릅니다.
+- **그대로인 것:** 예시 질문과 가게 데이터는 한국어 데모 데이터라 영어 화면에서도 한국어로 나옵니다. MCP 도구 이름·스키마, 이벤트 JSON 필드 이름, 로그 파일, 종료 코드는 언어와 상관없습니다.
+
+> 0.1.x 에서 올라온 경우: 한국어가 아닌 환경에서는 기본 출력 언어가 이제 영어입니다(전에는 한국어). 예전 출력을 유지하려면 `--lang ko` 로 실행하거나 `AGENT_LOOP_LANG=ko` 를 설정하세요.
 
 ## 단계별로 따라 하기
 
@@ -135,10 +147,11 @@ AI 모델은 글자 수를 세는 일을 자주 틀립니다. 그래서 함수 �
 화면 없이도 같은 루프가 돕니다.
 
 ```bash
-uv run agent-loop --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
+uv run agent-loop --lang ko --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
+# 영어 출력은 --lang en (또는 한국어가 아닌 환경의 기본값)
 ```
 
-![터미널에 회차별 생각, 도구 호출, 관찰이 한 줄씩 찍힌 출력](docs/images/07-cli.png)
+![터미널에 회차별 생각, 도구 호출, 관찰이 한 줄씩 찍힌 출력](docs/images/07-cli.ko.png)
 <sub>웹 화면과 같은 이벤트를 글로 찍은 모습입니다. 마지막 `[끝]` 줄에 회차 수와 도구 호출 수가 요약됩니다.</sub>
 
 MCP 서버가 남기는 로그(stderr)는 출력이 섞이지 않도록 터미널 대신 `runs/mcp-server-stderr.log` 에 모입니다(실행할 때마다 새로 씀). 로그가 있으면 마지막에 `[서버 로그] MCP 서버가 남긴 로그 1줄은 runs/mcp-server-stderr.log 에 있습니다.` 처럼 알려 줍니다. 예시 2(수박)를 돌려 보면 서버가 남긴 `Tool 'check_stock' failed: ...` 줄을 이 파일에서 볼 수 있습니다.
@@ -190,11 +203,12 @@ MCP의 역할은 2번과 4번, 즉 **도구를 어떻게 알리고(`tools/list`)
 | [`src/agentloop/mcp_hub.py`](src/agentloop/mcp_hub.py) | MCP 서버 연결, 도구 목록 합치기, 도구 호출 |
 | [`src/agentloop/llm.py`](src/agentloop/llm.py) | Ollama에서 생각을 흘려 받기 |
 | [`src/agentloop/mock_llm.py`](src/agentloop/mock_llm.py), [`scenarios/`](scenarios) | 모의 모드의 대본 모델과 대본 |
+| [`src/agentloop/i18n.py`](src/agentloop/i18n.py) | CLI·서버 문구의 영어/한국어 메시지 표와 언어 선택 (웹 화면은 `static/app.js` 위쪽에 따로 표가 있음) |
 | [`servers/shop_server.py`](servers/shop_server.py), [`servers/my_tools_server.py`](servers/my_tools_server.py) | MCP 서버 쪽 (도구를 가진 쪽) |
 | [`src/agentloop/web.py`](src/agentloop/web.py), [`static/`](src/agentloop/static) | 웹 화면, 이벤트 중계 |
 | [`tests/`](tests) | 테스트 (모의 모드로 돌아가며 키·모델이 필요 없음). `uv run pytest` 로 실행 |
 
-**테스트 돌려 보기:** `uv run pytest` 를 실행하면 키·모델 없이 1분 안에 끝납니다(실제 Ollama가 필요한 테스트는 기본으로 빠지고, `uv run pytest -m ollama` 로 따로 돌립니다).
+**테스트 돌려 보기:** `uv run pytest` 를 실행하면 키·모델 없이 1분 안에 끝납니다(76개가 통과하며, 실제 Ollama가 필요한 테스트는 기본으로 빠지고, `uv run pytest -m ollama` 로 따로 돌립니다).
 
 읽는 순서는 `agent.py` → `mcp_hub.py` → `servers/` 를 권합니다. 핵심 세 곳만 짚습니다.
 
@@ -284,7 +298,7 @@ def reverse_text(text: str) -> Reversed:
 **2. 최대 회차 줄이기** — 환경 변수로 회차 상한을 2로 줄여 봅니다.
 
 ```bash
-AGENT_MAX_STEPS=2 uv run agent-loop --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
+AGENT_MAX_STEPS=2 uv run agent-loop --lang ko --cli --mock "가장 재고가 많은 과일의 가격은 얼마야?"
 ```
 
 예시 1은 4회차가 필요하므로 이렇게 끝납니다.
@@ -301,6 +315,8 @@ AGENT_MAX_STEPS=2 uv run agent-loop --cli --mock "가장 재고가 많은 과일
 [회차 1][관찰·오류] Error executing tool check_stock
 ```
 
+(`uv run agent-loop --lang ko --cli --mock "수박 재고 있어?"` 로 실행합니다.)
+
 원래(`ToolError`)는 `Error executing tool check_stock: unknown item: 수박. …` 처럼 접두어 뒤에 원인 문구가 이어집니다. 일반 예외로 바꾸면 접두어만 남고 원인 문구가 가려집니다. 모델이 "무엇이 가능한지" 알 수 없게 되므로 고칠 단서가 사라집니다. (모의 모드의 대본 모델은 그래도 같은 답을 하지만, 실제 모델에서는 차이가 납니다. 확인 후 원래대로 되돌리세요.)
 
 ## 자주 겪는 문제
@@ -316,6 +332,7 @@ AGENT_MAX_STEPS=2 uv run agent-loop --cli --mock "가장 재고가 많은 과일
 | 오류 카드 `도구 이름 '…' 이(가) 서버 'a' 와 'b' 에 모두 있습니다` | 두 서버에 같은 도구 이름 | 한쪽 도구 이름을 바꾸세요 |
 | 웹 모드 터미널에 `Tool '…' failed` 줄이 나옴 | MCP 서버의 로그(stderr)가 보이는 것 | 정상입니다. `--cli` 에서는 이 로그가 `runs/mcp-server-stderr.log` 로 갑니다. 서버 코드에서 `print()`는 쓰지 마세요(표준 출력은 MCP 메시지 전용) |
 | Docker·가상 머신·원격 개발 서버에서 띄웠더니 내 PC 브라우저로 접속이 안 됨 | 웹 서버는 기본으로 `127.0.0.1`(그 컴퓨터 자신)에만 열림 | `--host 0.0.0.0` 으로 모든 주소에 엽니다. Docker는 포트도 내보내야 합니다: `docker run -p 8765:8765 ...` 안에서 `uv run agent-loop --mock --host 0.0.0.0 --no-browser` 후 `http://127.0.0.1:8765` 접속. 원격 서버라면 `--host`를 바꾸는 대신 `ssh -L 8765:127.0.0.1:8765 <서버>` 포트 포워딩이 더 안전합니다 |
+| `--lang xx` 를 주면 사용법 줄은 한국어인데 오류 문장은 영어로 나옴 | argparse 가 "invalid choice" 문장을 영어로 직접 출력함 | 알려진 한계입니다. `en` 또는 `ko` 를 쓰세요. 종료 코드는 어느 쪽이든 2 입니다 |
 
 **주의:** stdio 방식의 MCP 서버는 **내 PC에서 코드를 실행**합니다. 이 데모의 웹 화면은 기본으로 `127.0.0.1`(내 PC)에만 열립니다. `--host 0.0.0.0` 을 주면 같은 네트워크의 다른 기기도 질문을 실행할 수 있으므로(실행 시 경고가 나옵니다) 믿을 수 있는 네트워크에서만 쓰세요. 직접 만들지 않은 서버를 `mcp_servers.json`에 추가할 때는 코드를 확인하고 믿을 수 있는 것만 등록하세요.
 
@@ -331,7 +348,7 @@ AGENT_MAX_STEPS=2 uv run agent-loop --cli --mock "가장 재고가 많은 과일
 
 ## 더 알아보기
 
-- 다른 모델 써 보기: `OLLAMA_MODEL=<도구 호출을 지원하는 모델> uv run agent-loop --real`. 이 데모는 `qwen3:4b` 로만 확인했습니다. 환경 변수(`AGENT_MODE`, `OLLAMA_HOST`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX`, `AGENT_MAX_STEPS`, `AGENT_PORT`, `MOCK_DELAY_MS`, `MCP_SERVERS_FILE`)는 [.env.example](.env.example) 에 설명이 있습니다.
+- 다른 모델 써 보기: `OLLAMA_MODEL=<도구 호출을 지원하는 모델> uv run agent-loop --real`. 이 데모는 `qwen3:4b` 로만 확인했습니다. 환경 변수(`AGENT_MODE`, `OLLAMA_HOST`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX`, `AGENT_MAX_STEPS`, `AGENT_PORT`, `MOCK_DELAY_MS`, `MCP_SERVERS_FILE`, `AGENT_LOOP_LANG`)는 [.env.example](.env.example) 에 설명이 있습니다.
 - 원격 서버 연결: 이 데모는 stdio만 씁니다. HTTP로 연결하는 방식은 [Streamable HTTP 전송 명세](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports)를 참고하세요.
 - [MCP 명세](https://modelcontextprotocol.io/specification/latest) — 프로토콜 전체 설명
 - [MCP 도구(Tools) 명세](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) — `tools/list`, `tools/call`, `isError`
