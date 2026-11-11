@@ -9,7 +9,8 @@ from conftest import TESTS_DIR, no_children
 
 from agentloop.agent import run_agent
 from agentloop.mcp_hub import load_server_params
-from agentloop.mock_llm import NO_SCRIPT_ANSWER, ScriptedLLM
+from agentloop.i18n import MESSAGES
+from agentloop.mock_llm import ScriptedLLM
 from agentloop.prompts import SYSTEM_PROMPT
 
 pytestmark = pytest.mark.anyio
@@ -119,7 +120,7 @@ async def test_unknown_tool_becomes_error_observation(settings):
 async def test_unscripted_question_answers_with_notice(settings):
     events = await collect(settings, "오늘 날씨 어때?")
     answer = next(e for e in events if e["type"] == "answer")
-    assert answer["text"] == NO_SCRIPT_ANSWER
+    assert answer["text"] == MESSAGES["en"]["mock.no_script_answer"]  # 기본 언어는 영어
     assert events[-1]["stop_reason"] == "answer"
 
 

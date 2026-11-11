@@ -16,7 +16,7 @@ def test_loopback_hosts_have_no_warning():
 
 def test_any_address_warns_and_gives_usable_url():
     # 0.0.0.0 / :: 는 브라우저 주소창에 못 쓰므로 이 PC에서 여는 주소로 바꿔 보여 준다
-    url, warning = describe_host("0.0.0.0", 8765)
+    url, warning = describe_host("0.0.0.0", 8765, "ko")
     assert url == "http://127.0.0.1:8765"
     assert warning and "다른 기기" in warning
 
@@ -46,7 +46,7 @@ def test_busy_port_does_not_open_browser(monkeypatch, capsys):
         busy.listen()
         port = busy.getsockname()[1]
         assert not port_is_free("127.0.0.1", port)  # 특수 주소는 아래 별도 확인
-        code = main(["--mock", "--port", str(port)])
+        code = main(["--mock", "--port", str(port), "--lang", "ko"])
     captured = capsys.readouterr()
     assert code != 0
     assert opened == [] and started == []

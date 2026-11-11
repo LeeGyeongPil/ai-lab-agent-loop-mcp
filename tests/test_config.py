@@ -6,7 +6,7 @@ from agentloop.config import FALLBACK_NOTICE, load_settings, resolve_mode
 def test_auto_falls_back_to_mock():
     # 9번 포트(discard)에는 Ollama가 없다 → 연결 실패
     settings = load_settings({"AGENT_MODE": "auto", "OLLAMA_HOST": "http://127.0.0.1:9"})
-    mode, notice = resolve_mode(settings)
+    mode, notice = resolve_mode(settings, lang="ko")
     assert mode == "mock"
     assert "Ollama에 연결할 수 없어 모의 모드로 실행합니다" in notice
     assert FALLBACK_NOTICE in notice

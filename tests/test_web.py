@@ -40,7 +40,7 @@ def wait_until(condition, timeout: float = 30.0) -> bool:
 
 def test_index_and_static(client):
     page = client.get("/")
-    assert page.status_code == 200 and "에이전트 루프 + MCP" in page.text
+    assert page.status_code == 200 and "Agent loop + MCP" in page.text  # 기본 HTML 은 영어, 화면에서 JS 가 언어를 고른다
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/static/style.css").status_code == 200
 
@@ -86,7 +86,8 @@ def test_single_run_lock(slow_client):
         # 첫 실행이 진행 중일 때 두 번째 요청은 거절된다
         second = slow_client.get(RUN_URL)
         assert second.status_code == 409
-        assert "진행 중" in second.json()["error"]
+        assert second.json()["error"] == "Another run is in progress. Try again when it finishes."
+        assert "진행 중" in slow_client.get(RUN_URL + "&lang=ko").json()["error"]
     # 첫 실행이 끝나면(여기서는 연결을 닫으면) 다시 실행할 수 있다
     with slow_client.stream("GET", f"/api/run?q={quote('수박 재고 있어?')}&mode=mock") as again:
         assert again.status_code == 200
