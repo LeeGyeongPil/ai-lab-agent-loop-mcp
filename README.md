@@ -4,7 +4,7 @@
 
 A small, transparent demo of a tool-using AI agent loop (plan → act → observe, repeated) that talks to two MCP (Model Context Protocol) servers. Run `uv run agent-loop --mock` and the browser shows every step: the model's thinking, each `tools/call` request, each result, and the growing message history. Mock mode needs no model and no network; real mode uses a local Ollama model (`qwen3:4b`).
 
-![Screen while one example question runs: thinking, tool-call and observation cards pile up and the highlight in the loop diagram moves along. The screenshot shows the Korean UI](docs/images/00-hero-loop.gif)
+![Screen while one example question runs: thinking, tool-call and observation cards pile up and the highlight in the loop diagram moves along](docs/images/00-hero-loop.gif)
 <sub>When you enter one question, "thinking → tool call → observation" cards pile up and the conversation history on the right grows one line at a time. (Recorded in mock mode)</sub>
 
 ## One-line summary
@@ -59,7 +59,7 @@ If the browser doesn't open, open the address above yourself. On the first run i
 
 **What is mock mode?** It is a mode where a "fake model that speaks from a script" takes the place of the AI model. It runs without a model and the result is the same every time. However, the tool side (the MCP servers) is **real**: the server processes actually start, and messages are actually exchanged.
 
-![First screen. Numbered marks on the mode badge, the connected MCP server list and the example question buttons. The screenshot shows the Korean UI](docs/images/01-first-screen.png)
+![First screen. Numbered marks on the mode badge, the connected MCP server list and the example question buttons](docs/images/01-first-screen.png)
 <sub>The first screen. 1 the current mode, 2 the tool list the servers reported, 3 example questions to click.</sub>
 
 To run with a real local model (downloads about 2.5GB of model):
@@ -81,7 +81,7 @@ The screen and the terminal output come in **English and Korean**. English is th
 
 ## Step by step
 
-> The web screenshots below show the Korean UI. The English UI has the same layout, with an English / 한국어 menu in the header.
+> The screenshots below show the English UI (the Korean UI has the same layout; switch with the Language menu in the header). The example questions, the scripted model's thoughts and the fruit data are Korean demo data, so they stay in Korean on the English screen.
 
 ### Step 1. See the "tool list" on the first screen
 
@@ -93,7 +93,7 @@ This list is the answer the program got when it asked each server at startup, "w
 
 Click the button **Example 1: 가장 재고가 많은 과일의 가격은 얼마야?** (the question is Korean demo data: "What is the price of the fruit with the most stock?"). A few seconds later the screen looks like this.
 
-![Full screen after example 1 finishes. Cards for rounds 1 to 4 are stacked, with the conversation history on the right. The screenshot shows the Korean UI](docs/images/02-chain-done.png)
+![Full screen after example 1 finishes. Cards for rounds 1 to 4 are stacked, with the conversation history on the right](docs/images/02-chain-done.png)
 <sub>Gray is thinking, blue is a tool call, green is an observation (the result the tool returned), and purple is the final answer.</sub>
 
 Read the cards from top to bottom.
@@ -111,7 +111,7 @@ Also look at the **Conversation history sent to the model** on the right. Entrie
 
 Click **Show MCP request (tools/call)** and **Show MCP response (content · structuredContent · isError)** on the tool-call card and the observation card to expand them.
 
-![Screen with the tool-call card and observation card expanded, showing the tools/call request and the result JSON. The screenshot shows the Korean UI](docs/images/03-mcp-messages.png)
+![Screen with the tool-call card and observation card expanded, showing the tools/call request and the result JSON](docs/images/03-mcp-messages.png)
 <sub>The upper request is `tools/call`, and the lower response contains `structuredContent` and `isError`.</sub>
 
 - Request: `"method": "tools/call"`, the tool name and the arguments (`arguments`). This is the MCP message that says "please run this tool with these values."
@@ -123,7 +123,7 @@ As the note at the bottom of the screen says, the request side is reconstructed 
 
 Click **Example 2: 수박 재고 있어?** ("Is watermelon in stock?"). This shop has no watermelon.
 
-![A red observation card marked isError true when asked about watermelon stock, and the next round that reads that error and answers. The screenshot shows the Korean UI](docs/images/04-error-observed.png)
+![A red observation card marked isError true when asked about watermelon stock, and the next round that reads that error and answers](docs/images/04-error-observed.png)
 <sub>The red card is the error observation. This text goes back to the model as is and becomes material for the next round of thinking.</sub>
 
 The tool returns the error `Error executing tool check_stock: unknown item: 수박. known: ['사과', '바나나', '포도']` (the leading `Error executing tool <tool name>:` is a prefix the SDK attaches; "수박" is watermelon). The program does not stop here; it **appends this error to the conversation history as an observation.** The model reads the information that "only three items are possible" and answers "we don't carry watermelon." If you **put a clue for fixing it** in the error text, the model can correct itself.
@@ -132,7 +132,7 @@ The tool returns the error `Error executing tool check_stock: unknown item: 수�
 
 Check **Step by step** and run example 1 again. Now each time you click the **Next step** button, one card appears.
 
-![Screen with step-by-step view on and Next step clicked five times. Only up to round 2's thinking is visible. The screenshot shows the Korean UI](docs/images/06-step-mode.png)
+![Screen with step-by-step view on and Next step clicked five times. Only up to Step 2's thinking is visible](docs/images/06-step-mode.png)
 <sub>1 The button shows the number of steps remaining. 2 Only as many cards appear as you clicked. The loop diagram on the right highlights the current step.</sub>
 
 It is good for taking the loop apart slowly. Before clicking the button, try guessing first: "what will the next card be?"
@@ -141,7 +141,7 @@ It is good for taking the loop apart slowly. Before clicking the button, try gue
 
 Click **Example 3: '에이전트 루프'는 몇 글자야?** ("How many characters is '에이전트 루프' (agent loop)?").
 
-![The count_chars tool is called and returns 7 characters, 6 without spaces. The screenshot shows the Korean UI](docs/images/05-my-tool.png)
+![The count_chars tool is called and returns 7 characters, 6 without spaces](docs/images/05-my-tool.png)
 <sub>This time `count_chars` of the `my_tools` server was called, not `shop`.</sub>
 
 AI models often get character counting wrong. So the job is handed to a tool that is a few lines of function, and the model reads the result and answers. The code of this tool is in `servers/my_tools_server.py`, and you'll build one more in "Try changing things yourself" below.
