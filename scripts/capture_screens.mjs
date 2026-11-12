@@ -4,13 +4,19 @@
 //   2) 터미널 B:  npx -y -p playwright@1.60.0 node scripts/capture_screens.mjs
 //      (처음이면 브라우저 설치: npx -y playwright@1.60.0 install chromium)
 //
-// 환경 변수: BASE_URL(기본 http://127.0.0.1:8765), OUT_DIR(기본 docs/images)
+// 환경 변수: BASE_URL(기본 http://127.0.0.1:8765), OUT_DIR(기본 docs/images),
+//            LANGS(기본 "en,ko" — 언어별로 <id>.png / <id>.ko.png 로 저장)
+//            VIDEO_DIR(기본 임시 폴더 — webm 은 docs/images 에 남기지 않는다)
+// 웹 화면 언어는 서버 LANG 이 아니라 localStorage('agentloop.lang')로 고정한다(아래 openPage).
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const BASE_URL = process.env.BASE_URL || "http://127.0.0.1:8765";
 const OUT_DIR = process.env.OUT_DIR || "docs/images";
+const VIDEO_DIR = process.env.VIDEO_DIR || path.join(os.tmpdir(), "agentloop-capture");
+const LANGS =(process.env.LANGS || "en,ko").split(",").map((l) => l.trim()).filter(Boolean);
 const EXAMPLES = [
   "가장 재고가 많은 과일의 가격은 얼마야?",
   "수박 재고 있어?",
@@ -32,13 +38,16 @@ async function loadPlaywright() {
   }
 }
 
-async function openPage(browser, { video = false } = {}) {
+async function openPage(browser, lang, { video = false } = {}) {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     deviceScaleFactor: 2,
     colorScheme: "light",
-    ...(video ? { recordVideo: { dir: OUT_DIR, size: { width: 1440, height: 900 } } } : {}),
+    locale: lang === "ko" ? "ko-KR" : "en-US",
+    ...(video ? { recordVideo: { dir: VIDEO_DIR, size: { width: 1440, height: 900 } } } : {}),
   });
+  // 첫 페이지 로드 전에 화면 언어를 저장해 둔다(앱은 localStorage 'agentloop.lang' 을 읽는다)
+  await context.addInitScript((l) => localStorage.setItem("agentloop.lang", l), lang);
   const page = await context.newPage();
   await page.goto(BASE_URL);
   await page.waitForSelector("#server-list .tool >> nth=3"); // 도구 4개가 보일 때까지
@@ -51,15 +60,14 @@ async function runExample(page, index) {
   await page.waitForSelector('body[data-run-state="done"]', { timeout: 60_000 }); // 완료 표시
 }
 
-async function main() {
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  const { chromium } = await loadPlaywright();
-  const browser = await chromium.launch();
-  const shot = (page, name, opts = {}) => page.screenshot({ path: path.join(OUT_DIR, name), ...opts });
+// 영어(기본)는 <id>.png, 그 밖의 언어는 <id>.<lang>.png
+const named = (lang, name) => (lang === "en" ? name : name.replace(/\.(\w+)$/, `.${lang}.$1`));
 
-  try {
+async function shootLang(browser, lang) {
+  const shot = (page, name, opts = {}) => page.screenshot({ path: path.join(OUT_DIR, named(lang, name)), ...opts });
+  {
     // 장면 1: 첫 화면 — 연결된 MCP 서버 2개와 도구 4개
-    let { context, page } = await openPage(browser);
+    let { context, page } = await openPage(browser, lang);
     await shot(page, "01-first-screen.png");
 
     // 장면 2: 예시 ① 완료 화면(루프 그림·대화 기록 포함)
@@ -71,23 +79,23 @@ async function main() {
     const obs = page.locator(".card.observe").last();
     await call.locator("details").evaluate((d) => (d.open = true));
     await obs.locator("details").evaluate((d) => (d.open = true));
-    await page.locator(".center").screenshot({ path: path.join(OUT_DIR, "03-mcp-messages.png") });
+    await page.locator(".center").screenshot({ path: path.join(OUT_DIR, named(lang, "03-mcp-messages.png")) });
     await context.close();
 
     // 장면 4: 예시 ② — 빨간 오류 관찰 카드와 다음 회차 생각
-    ({ context, page } = await openPage(browser));
+    ({ context, page } = await openPage(browser, lang));
     await runExample(page, 1);
     await shot(page, "04-error-observed.png", { fullPage: true });
     await context.close();
 
     // 장면 5: 예시 ③ — 내 도구(count_chars) 호출
-    ({ context, page } = await openPage(browser));
+    ({ context, page } = await openPage(browser, lang));
     await runExample(page, 2);
     await shot(page, "05-my-tool.png", { fullPage: true });
     await context.close();
 
-    // 장면 6: 한 단계씩 보기 — "다음 단계"를 4번 누른 상태
-    ({ context, page } = await openPage(browser));
+    // 장면 6: 한 단계씩 보기 — "다음 단계"를 5번 누른 상태
+    ({ context, page } = await openPage(browser, lang));
     await page.check("#step-toggle");
     await page.click("#examples button >> nth=0");
     await page.waitForSelector('body[data-stream-state="ended"]'); // 이벤트가 모두 도착(버퍼에 쌓임)할 때까지
@@ -95,14 +103,24 @@ async function main() {
     await shot(page, "06-step-mode.png");
     await context.close();
 
-    // 장면 7(동영상): 예시 ① 전체 흐름. webm → GIF 변환은 ffmpeg 등으로 따로 한다.
-    ({ context, page } = await openPage(browser, { video: true }));
+    // 장면 7(동영상): 예시 ① 전체 흐름. VIDEO_DIR 에 저장하며 webm → GIF 변환은 ffmpeg 등으로 따로 한다.
+    ({ context, page } = await openPage(browser, lang, { video: true }));
     await page.waitForTimeout(500);
     await runExample(page, 0);
     await page.waitForTimeout(1500);
     const video = page.video();
     await context.close();
-    if (video) fs.renameSync(await video.path(), path.join(OUT_DIR, "07-chain-run.webm"));
+    if (video) fs.renameSync(await video.path(), path.join(VIDEO_DIR, named(lang, "07-chain-run.webm")));
+  }
+}
+
+async function main() {
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  fs.mkdirSync(VIDEO_DIR, { recursive: true });
+  const { chromium } = await loadPlaywright();
+  const browser = await chromium.launch();
+  try {
+    for (const lang of LANGS) await shootLang(browser, lang);
   } finally {
     await browser.close();
   }
